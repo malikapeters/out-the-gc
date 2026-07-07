@@ -301,7 +301,7 @@
           <h2>out the <span style="color:var(--accent)">gc</span></h2>
           <p>Find the window everyone's actually free. First, who are you?</p>
           ${existing.length ? `
-            <label class="field-label">I'm already in the crew</label>
+            <label class="field-label">Already in</label>
             <div class="existing-people">
               ${existing.map(p => `
                 <div class="person-pick" data-id="${p.id}">
@@ -356,7 +356,7 @@
         <div class="me-chip" id="switch-me"><span class="dot" style="background:${me.color}"></span>${escapeHtml(me.name)}</div>
       </header>
 
-      <div class="section-title">Crew</div>
+      <div class="section-title">People</div>
       <div class="crew-row" id="crew-row">
         ${data.people.map(p => `
           <div class="crew-pill ${hiddenPeople.has(p.id)?'off':''}" data-id="${p.id}">
@@ -390,7 +390,7 @@
       <input type="file" id="ics-file" accept=".ics" style="display:none;">
 
       <div class="hint-box">
-        <b>Apple Calendar:</b> there's no way for a website to auto-watch your calendar (Apple blocks that for privacy). Instead, export your calendar as an .ics file — Calendar app → tap a calendar → Share → Export — then hit "Import .ics" above to drop your busy times in.
+        <b>Apple Calendar:</b> Export your calendar as an .ics file — Calendar app → tap a calendar → Share → Export — then hit "Import .ics" above to drop your busy times in.
       </div>
     `;
 
