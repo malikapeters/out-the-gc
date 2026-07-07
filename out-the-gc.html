@@ -106,38 +106,33 @@
   .crew-pill.off{ opacity: 0.35; }
   .crew-pill .you-tag{ font-size: 10px; color: var(--text-dimmer); }
 
-  /* ---------- Day chips ---------- */
-  .day-strip{ display:flex; gap:8px; overflow-x:auto; padding-bottom: 4px; margin-bottom: 18px; }
-  .day-chip{
-    flex-shrink:0; background: var(--surface); border:1px solid var(--line); border-radius: 12px;
-    padding: 10px 14px; text-align:center; min-width: 58px;
+  /* ---------- Month calendar grid ---------- */
+  .month-card{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius); padding: 14px 10px 16px; }
+  .month-header{ display:flex; align-items:center; justify-content:space-between; padding: 0 6px 12px; }
+  .month-label{ font-family: var(--font-display); font-size:16px; font-weight:600; }
+  .month-nav-btn{ background: var(--surface-2); color: var(--text); width:30px; height:30px; border-radius:8px; font-size:16px; border:1px solid var(--line); line-height:1; }
+  .weekday-row{ display:grid; grid-template-columns: repeat(7,1fr); margin-bottom:5px; }
+  .weekday-row span{ text-align:center; font-size:10px; color: var(--text-dimmer); text-transform:uppercase; letter-spacing:0.04em; }
+  .month-grid{ display:flex; flex-direction:column; gap:3px; }
+  .week-row{ display:grid; grid-template-columns: repeat(7,1fr); gap:3px; }
+  .day-cell{
+    background: var(--surface-2); border-radius:8px; min-height: 64px; padding: 5px 3px;
+    border: 1px solid transparent; overflow:hidden; cursor:pointer; transition: background .15s, border-color .15s;
   }
-  .day-chip .dow{ font-size:10px; color: var(--text-dimmer); text-transform:uppercase; letter-spacing:0.05em; }
-  .day-chip .dom{ font-family: var(--font-display); font-size: 18px; font-weight:700; margin-top:2px; }
-  .day-chip.active{ border-color: var(--accent); background: var(--accent-dim); }
-
-  /* ---------- Timeline (signature element) ---------- */
-  .timeline-card{
-    background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
-    padding: 18px 16px 14px;
+  .day-cell.other-month{ opacity: 0.32; }
+  .day-cell.today .day-num{ color: var(--accent); font-weight:700; }
+  .day-cell.selected{ border-color: var(--accent); }
+  .day-cell.free-day{ background: var(--gold-dim); border-color: rgba(255,200,87,0.45); }
+  .day-cell.free-day.selected{ border-color: var(--gold); }
+  .day-num{ font-family: var(--font-mono); font-size:11px; color: var(--text-dim); margin-bottom:3px; text-align:center; }
+  .day-pills{ display:flex; flex-direction:column; gap:2px; }
+  .pill{
+    font-size:8.5px; padding:2px 4px; border-radius:4px; border:1px solid transparent;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.35; font-weight:600;
   }
-  .timeline-card h3{ font-family: var(--font-display); font-size: 16px; margin: 0 0 14px; }
-  .lane{ display:flex; align-items:center; gap:10px; margin-bottom: 7px; }
-  .lane .lane-label{ width: 64px; flex-shrink:0; font-size:11px; color: var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .lane .lane-track{
-    position: relative; flex:1; height: 16px; background: var(--surface-2); border-radius: 5px; overflow:hidden;
-  }
-  .seg{ position:absolute; top:0; bottom:0; border-radius:4px; opacity:0.85; }
-  .free-track{
-    position: relative; flex:1; height: 20px; background: var(--surface-2); border-radius: 6px; overflow:hidden;
-    border: 1px dashed var(--line);
-  }
-  .free-seg{
-    position:absolute; top:0; bottom:0; background: var(--gold); box-shadow: 0 0 14px 1px rgba(255,200,87,0.55);
-    border-radius: 5px;
-  }
-  .ticks{ display:flex; margin-left: 74px; margin-top: 6px; }
-  .ticks span{ flex:1; font-family: var(--font-mono); font-size: 9px; color: var(--text-dimmer); text-align:left; }
+  .pill-more{ font-size:8.5px; color: var(--text-dimmer); padding:0 4px; font-weight:500; }
+  .legend-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; padding: 0 2px; }
+  .legend-item{ display:flex; align-items:center; gap:5px; font-size:11px; color: var(--text-dim); }
 
   /* ---------- Good windows list ---------- */
   .windows-list{ margin-top: 10px; display:flex; flex-direction:column; gap:8px; }
@@ -227,10 +222,14 @@
 
   let data = { people: [], blocks: [] };
   let myId = null;
-  let selectedDayOffset = 0;
+  let monthAnchor = startOfMonthSafe(new Date());
+  let selectedDate = startOfDaySafe(new Date());
   let hiddenPeople = new Set();
   let modalOpen = false;
   let dataLoaded = false;
+
+  function startOfMonthSafe(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function startOfDaySafe(d){ const x = new Date(d); x.setHours(0,0,0,0); return x; }
 
   const $app = document.getElementById('app');
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2) + Date.now());
@@ -269,6 +268,9 @@
   // ---------- Date helpers ----------
   function startOfDay(d){ const x = new Date(d); x.setHours(0,0,0,0); return x; }
   function addDays(d,n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
+  function addMonths(d,n){ return new Date(d.getFullYear(), d.getMonth()+n, 1); }
+  function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function sameDay(a,b){ return startOfDay(a).getTime() === startOfDay(b).getTime(); }
   function fmtTime(d){
     let h = d.getHours(), m = d.getMinutes();
     const ap = h>=12 ? 'pm':'am';
@@ -343,9 +345,6 @@
     if(!me){ renderSetup(); return; }
 
     const today = startOfDay(new Date());
-    const days = Array.from({length:9}, (_,i)=>addDays(today,i));
-    const selectedDate = days[selectedDayOffset];
-
     const visiblePeople = data.people.filter(p=>!hiddenPeople.has(p.id));
 
     $app.innerHTML = `
@@ -366,22 +365,13 @@
           </div>`).join('')}
       </div>
 
-      <div class="section-title">Pick a day</div>
-      <div class="day-strip" id="day-strip">
-        ${days.map((d,i)=>`
-          <div class="day-chip ${i===selectedDayOffset?'active':''}" data-i="${i}">
-            <div class="dow">${fmtDow(d)}</div>
-            <div class="dom">${fmtDom(d)}</div>
-          </div>`).join('')}
-      </div>
-
-      <div class="timeline-card">
-        <h3>${fmtDayLabel(selectedDate, today)}</h3>
-        ${renderTimelineLanes(selectedDate, visiblePeople)}
-        <div class="ticks">
-          <span>6a</span><span>10a</span><span>2p</span><span>6p</span><span>10p</span><span>2a</span>
-        </div>
-      </div>
+      <div class="section-title">Calendar</div>
+      ${renderMonthGrid(monthAnchor, selectedDate, visiblePeople, today)}
+      ${visiblePeople.length ? `
+        <div class="legend-row">
+          ${visiblePeople.map(p=>`<div class="legend-item"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}</div>`).join('')}
+          <div class="legend-item"><span class="dot" style="background:var(--gold)"></span>everyone free</div>
+        </div>` : ''}
 
       <div class="section-title">Good windows, next few days</div>
       <div class="windows-list" id="windows-list">
@@ -389,7 +379,7 @@
       </div>
 
       <div class="section-title">${fmtDayLabel(selectedDate, today)}'s plans</div>
-      <div class="timeline-card" style="padding-top:6px;">
+      <div class="month-card" style="padding-top:6px;">
         ${renderBlocksForDay(selectedDate)}
       </div>
 
@@ -415,8 +405,19 @@
         render();
       });
     });
-    $app.querySelectorAll('#day-strip .day-chip').forEach(el=>{
-      el.addEventListener('click', ()=>{ selectedDayOffset = parseInt(el.getAttribute('data-i')); render(); });
+    const prevBtn = document.getElementById('prev-month');
+    const nextBtn = document.getElementById('next-month');
+    if(prevBtn) prevBtn.addEventListener('click', ()=>{ monthAnchor = addMonths(monthAnchor,-1); render(); });
+    if(nextBtn) nextBtn.addEventListener('click', ()=>{ monthAnchor = addMonths(monthAnchor,1); render(); });
+    $app.querySelectorAll('.day-cell').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const d = new Date(el.getAttribute('data-date'));
+        selectedDate = d;
+        if(d.getMonth() !== monthAnchor.getMonth() || d.getFullYear() !== monthAnchor.getFullYear()){
+          monthAnchor = startOfMonth(d);
+        }
+        render();
+      });
     });
     document.getElementById('add-btn').addEventListener('click', ()=>openAddModal(selectedDate));
     document.getElementById('import-btn').addEventListener('click', ()=>document.getElementById('ics-file').click());
@@ -431,43 +432,81 @@
     });
   }
 
-  // ---------- Timeline math ----------
+  // ---------- Month grid ----------
+  function getMonthMatrix(anchor){
+    const firstOfMonth = startOfMonth(anchor);
+    const firstDow = (firstOfMonth.getDay()+6)%7; // Monday=0 .. Sunday=6
+    const gridStart = addDays(firstOfMonth, -firstDow);
+    const weeks = [];
+    let cursor = gridStart;
+    for(let w=0; w<6; w++){
+      const week = [];
+      for(let d=0; d<7; d++){ week.push(new Date(cursor)); cursor = addDays(cursor,1); }
+      weeks.push(week);
+    }
+    return weeks;
+  }
+
+  function blocksForDayVisible(date, personIds){
+    const dayStart = startOfDay(date), dayEnd = addDays(dayStart,1);
+    return data.blocks
+      .filter(b => personIds.includes(b.personId) && new Date(b.start) < dayEnd && new Date(b.end) > dayStart)
+      .sort((a,b)=> new Date(a.start)-new Date(b.start));
+  }
+
+  function renderMonthGrid(anchor, selDate, visiblePeople, today){
+    const monthLabel = anchor.toLocaleDateString(undefined,{month:'long', year:'numeric'});
+    const weeks = getMonthMatrix(anchor);
+    const personIds = visiblePeople.map(p=>p.id);
+    const weekdayLabels = ['M','T','W','T','F','S','S'];
+    const maxShow = 3;
+
+    const weeksHtml = weeks.map(week => `
+      <div class="week-row">
+        ${week.map(day => {
+          const inMonth = day.getMonth() === anchor.getMonth();
+          const isToday = sameDay(day, today);
+          const isSelected = sameDay(day, selDate);
+          const blocks = blocksForDayVisible(day, personIds);
+          const isFreeDay = personIds.length > 0 && blocks.length === 0;
+          const shown = blocks.slice(0, maxShow);
+          const extra = blocks.length - shown.length;
+          const pillsHtml = shown.map(b=>{
+            const p = data.people.find(pp=>pp.id===b.personId);
+            const c = p ? p.color : '#888';
+            return `<div class="pill" style="background:${c}26; color:${c}; border-color:${c}66;">${escapeHtml(b.title)}</div>`;
+          }).join('');
+          const moreHtml = extra > 0 ? `<div class="pill-more">+${extra} more</div>` : '';
+          const classes = [
+            'day-cell',
+            inMonth ? '' : 'other-month',
+            isFreeDay ? 'free-day' : '',
+            isToday ? 'today' : '',
+            isSelected ? 'selected' : ''
+          ].filter(Boolean).join(' ');
+          return `<div class="${classes}" data-date="${day.toISOString()}">
+            <div class="day-num">${day.getDate()}</div>
+            <div class="day-pills">${pillsHtml}${moreHtml}</div>
+          </div>`;
+        }).join('')}
+      </div>`).join('');
+
+    return `
+      <div class="month-card">
+        <div class="month-header">
+          <button class="month-nav-btn" id="prev-month" type="button">‹</button>
+          <div class="month-label">${monthLabel}</div>
+          <button class="month-nav-btn" id="next-month" type="button">›</button>
+        </div>
+        <div class="weekday-row">${weekdayLabels.map(w=>`<span>${w}</span>`).join('')}</div>
+        <div class="month-grid">${weeksHtml}</div>
+      </div>`;
+  }
+
   function windowBounds(dayDate){
     const start = new Date(dayDate); start.setHours(WINDOW_START_HOUR,0,0,0);
     const end = new Date(dayDate); end.setHours(WINDOW_END_HOUR,0,0,0); // rolls to next day correctly
     return {start, end};
-  }
-  function pct(date, start, totalMs){
-    let v = (date - start) / totalMs * 100;
-    return Math.max(0, Math.min(100, v));
-  }
-  function blocksOverlapping(personId, start, end){
-    return data.blocks.filter(b => b.personId===personId && new Date(b.start) < end && new Date(b.end) > start);
-  }
-
-  function renderTimelineLanes(dayDate, visiblePeople){
-    const {start, end} = windowBounds(dayDate);
-    const total = end - start;
-    if(visiblePeople.length===0){
-      return `<div class="empty-note">Nobody selected — toggle the crew above.</div>`;
-    }
-    const lanes = visiblePeople.map(p=>{
-      const segs = blocksOverlapping(p.id, start, end).map(b=>{
-        const s = new Date(Math.max(new Date(b.start), start));
-        const e = new Date(Math.min(new Date(b.end), end));
-        const left = pct(s, start, total), right = pct(e, start, total);
-        return `<div class="seg" style="left:${left}%; width:${Math.max(right-left,1)}%; background:${p.color}" title="${escapeHtml(b.title)}"></div>`;
-      }).join('');
-      return `<div class="lane"><div class="lane-label">${escapeHtml(p.name)}</div><div class="lane-track">${segs}</div></div>`;
-    }).join('');
-
-    const free = computeFreeIntervals(start, end, visiblePeople.map(p=>p.id));
-    const freeSegs = free.map(f=>{
-      const left = pct(f.start, start, total), right = pct(f.end, start, total);
-      return `<div class="free-seg" style="left:${left}%; width:${Math.max(right-left,0.5)}%"></div>`;
-    }).join('');
-
-    return lanes + `<div class="lane"><div class="lane-label" style="color:var(--gold)">everyone</div><div class="free-track">${freeSegs}</div></div>`;
   }
 
   function computeFreeIntervals(start, end, personIds){
