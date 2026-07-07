@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>out the gc</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg: #12141c;
+    --surface: #1b1f2c;
+    --surface-2: #242a3b;
+    --line: rgba(255,255,255,0.09);
+    --text: #f1efe9;
+    --text-dim: #8d93a8;
+    --text-dimmer: #5f6478;
+    --accent: #6c7bff;
+    --accent-dim: rgba(108,123,255,0.16);
+    --gold: #ffc857;
+    --gold-dim: rgba(255,200,87,0.14);
+    --danger: #ff6b6b;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+    --radius: 14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  #app{ max-width: 720px; margin: 0 auto; padding: 20px 16px 80px; }
+
+  /* ---------- Header ---------- */
+  header.top{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom: 22px; }
+  header.top h1{
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  header.top h1 span{ color: var(--accent); }
+  header.top .tagline{ font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .me-chip{
+    display:flex; align-items:center; gap:6px;
+    background: var(--surface); border:1px solid var(--line);
+    padding: 6px 10px; border-radius: 999px; font-size: 12px; color: var(--text-dim);
+    cursor:pointer; white-space:nowrap;
+  }
+  .dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; display:inline-block; }
+
+  /* ---------- Setup gate ---------- */
+  #setup{
+    display:flex; align-items:center; justify-content:center; min-height: 80vh;
+  }
+  .setup-card{
+    background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
+    padding: 28px 24px; width: 100%; max-width: 380px;
+  }
+  .setup-card h2{ font-family: var(--font-display); font-size: 20px; margin: 0 0 4px; }
+  .setup-card p{ color: var(--text-dim); font-size: 13px; margin: 0 0 18px; line-height:1.5;}
+  .existing-people{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom: 16px; }
+  .person-pick{
+    display:flex; align-items:center; gap:6px; background: var(--surface-2); border:1px solid var(--line);
+    padding: 7px 12px; border-radius: 999px; font-size: 13px; cursor:pointer;
+  }
+  .person-pick:hover{ border-color: var(--accent); }
+
+  input[type=text], input[type=date], input[type=time], input[type=number]{
+    width:100%; background: var(--surface-2); border:1px solid var(--line); color: var(--text);
+    padding: 10px 12px; border-radius: 8px; font-size: 14px; font-family: var(--font-body);
+  }
+  input:focus{ outline: none; border-color: var(--accent); }
+  label.field-label{ font-size: 11px; text-transform:uppercase; letter-spacing:0.06em; color: var(--text-dimmer); display:block; margin: 14px 0 6px; }
+
+  button{ font-family: var(--font-body); cursor:pointer; border:none; }
+  .btn-primary{
+    background: var(--accent); color: #fff; padding: 11px 16px; border-radius: 9px;
+    font-size: 14px; font-weight: 600; width:100%; margin-top: 18px;
+  }
+  .btn-primary:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn-secondary{
+    background: var(--surface-2); color: var(--text); padding: 10px 14px; border-radius: 9px;
+    font-size: 13px; font-weight: 500; border:1px solid var(--line);
+  }
+  .btn-ghost{ background:transparent; color: var(--text-dim); font-size: 13px; padding: 6px 8px; }
+
+  /* ---------- Crew ---------- */
+  .section-title{
+    font-family: var(--font-display); font-size: 13px; text-transform:uppercase; letter-spacing:0.08em;
+    color: var(--text-dimmer); margin: 26px 0 10px;
+  }
+  .crew-row{ display:flex; flex-wrap:wrap; gap:8px; }
+  .crew-pill{
+    display:flex; align-items:center; gap:7px; background: var(--surface); border:1px solid var(--line);
+    padding: 7px 11px 7px 8px; border-radius: 999px; font-size: 13px; cursor:pointer; transition: opacity .15s;
+  }
+  .crew-pill.off{ opacity: 0.35; }
+  .crew-pill .you-tag{ font-size: 10px; color: var(--text-dimmer); }
+
+  /* ---------- Day chips ---------- */
+  .day-strip{ display:flex; gap:8px; overflow-x:auto; padding-bottom: 4px; margin-bottom: 18px; }
+  .day-chip{
+    flex-shrink:0; background: var(--surface); border:1px solid var(--line); border-radius: 12px;
+    padding: 10px 14px; text-align:center; min-width: 58px;
+  }
+  .day-chip .dow{ font-size:10px; color: var(--text-dimmer); text-transform:uppercase; letter-spacing:0.05em; }
+  .day-chip .dom{ font-family: var(--font-display); font-size: 18px; font-weight:700; margin-top:2px; }
+  .day-chip.active{ border-color: var(--accent); background: var(--accent-dim); }
+
+  /* ---------- Timeline (signature element) ---------- */
+  .timeline-card{
+    background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 16px 14px;
+  }
+  .timeline-card h3{ font-family: var(--font-display); font-size: 16px; margin: 0 0 14px; }
+  .lane{ display:flex; align-items:center; gap:10px; margin-bottom: 7px; }
+  .lane .lane-label{ width: 64px; flex-shrink:0; font-size:11px; color: var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lane .lane-track{
+    position: relative; flex:1; height: 16px; background: var(--surface-2); border-radius: 5px; overflow:hidden;
+  }
+  .seg{ position:absolute; top:0; bottom:0; border-radius:4px; opacity:0.85; }
+  .free-track{
+    position: relative; flex:1; height: 20px; background: var(--surface-2); border-radius: 6px; overflow:hidden;
+    border: 1px dashed var(--line);
+  }
+  .free-seg{
+    position:absolute; top:0; bottom:0; background: var(--gold); box-shadow: 0 0 14px 1px rgba(255,200,87,0.55);
+    border-radius: 5px;
+  }
+  .ticks{ display:flex; margin-left: 74px; margin-top: 6px; }
+  .ticks span{ flex:1; font-family: var(--font-mono); font-size: 9px; color: var(--text-dimmer); text-align:left; }
+
+  /* ---------- Good windows list ---------- */
+  .windows-list{ margin-top: 10px; display:flex; flex-direction:column; gap:8px; }
+  .window-item{
+    display:flex; justify-content:space-between; align-items:center;
+    background: var(--gold-dim); border: 1px solid rgba(255,200,87,0.3); border-radius: 10px;
+    padding: 10px 13px; font-size: 13px;
+  }
+  .window-item .w-day{ color: var(--text-dim); font-size: 11px; margin-right:6px; }
+  .window-item .w-time{ font-family: var(--font-mono); font-weight:500; }
+  .no-window{ color: var(--text-dim); font-size: 13px; padding: 14px 0; text-align:center; }
+
+  /* ---------- Blocks list ---------- */
+  .block-item{
+    display:flex; align-items:center; gap:10px; padding: 10px 4px; border-bottom: 1px solid var(--line);
+  }
+  .block-item:last-child{ border-bottom:none; }
+  .block-item .b-title{ font-size:13px; flex:1; }
+  .block-item .b-time{ font-family: var(--font-mono); font-size:11px; color: var(--text-dim); }
+  .block-item .b-del{ color: var(--danger); font-size: 16px; line-height:1; padding: 4px 6px; background:none; }
+  .empty-note{ color: var(--text-dimmer); font-size:13px; padding: 10px 0; }
+
+  /* ---------- Floating actions ---------- */
+  .fab-row{ display:flex; gap:10px; margin-top: 20px; }
+  .fab-row button{ flex:1; padding: 12px; border-radius: 10px; font-size: 13px; font-weight:600; }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop{
+    position:fixed; inset:0; background: rgba(0,0,0,0.55); display:flex; align-items:flex-end; justify-content:center;
+    z-index: 50;
+  }
+  .modal-sheet{
+    background: var(--surface); border-radius: 18px 18px 0 0; padding: 22px 20px 28px; width:100%; max-width: 480px;
+    border-top: 1px solid var(--line);
+  }
+  .modal-sheet h3{ font-family: var(--font-display); margin: 0 0 4px; font-size: 18px; }
+  .modal-sheet .modal-sub{ font-size:12px; color: var(--text-dim); margin-bottom: 6px; }
+  .row-2{ display:flex; gap:10px; }
+  .row-2 > div{ flex:1; }
+  .checkbox-row{ display:flex; align-items:center; gap:8px; margin-top:14px; font-size:13px; color: var(--text-dim); }
+  .modal-actions{ display:flex; gap:10px; margin-top: 20px; }
+  .modal-actions .btn-secondary{ flex:1; }
+  .modal-actions .btn-primary{ flex:1; margin-top:0; }
+
+  .hint-box{
+    margin-top: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px; font-size: 12px; color: var(--text-dim); line-height: 1.6;
+  }
+  .hint-box b{ color: var(--text); }
+  .sync-dot{ display:inline-block; width:6px; height:6px; border-radius:50%; background: #4ade80; margin-right:5px; }
+
+  ::-webkit-scrollbar{ height: 6px; width:6px; }
+  ::-webkit-scrollbar-thumb{ background: var(--surface-2); border-radius:4px; }
+</style>
+</head>
+<body>
+<div id="app"><div id="setup"></div></div>
+
+<script>
+(function(){
+  // ============================================================
+  // FIREBASE CONFIG — paste your own project's config here.
+  // Get this from: Firebase Console → Project settings → General
+  // → "Your apps" → Web app → SDK setup and configuration.
+  // ============================================================
+  const firebaseConfig = {
+    apiKey: "AIzaSyDtDox-vwISBe9HsnENwVLDBNDt6JydxwA",
+    authDomain: "out-the-gc-929b1.firebaseapp.com",
+    projectId: "out-the-gc-929b1",
+    storageBucket: "out-the-gc-929b1.firebasestorage.app",
+    messagingSenderId: "910472157095",
+    appId: "1:910472157095:web:929ed62214747ce18f4882"
+  };
+  const NOT_CONFIGURED = firebaseConfig.apiKey === "PASTE_YOUR_API_KEY";
+
+  let db = null, docRef = null;
+  if(!NOT_CONFIGURED){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    docRef = db.collection('outthegc').doc('shared');
+  }
+
+  const PALETTE = ['#6c7bff','#ff6b6b','#4ade80','#ffc857','#c084fc','#38bdf8','#fb923c','#f472b6'];
+  const WINDOW_START_HOUR = 6;   // 6am
+  const WINDOW_END_HOUR = 26;    // 2am next day
+  const ME_KEY = 'gc-my-person-id'; // stored in this browser's localStorage
+
+  let data = { people: [], blocks: [] };
+  let myId = null;
+  let selectedDayOffset = 0;
+  let hiddenPeople = new Set();
+  let modalOpen = false;
+  let dataLoaded = false;
+
+  const $app = document.getElementById('app');
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2) + Date.now());
+
+  function colorFor(index){ return PALETTE[index % PALETTE.length]; }
+
+  async function saveData(){
+    try{ await docRef.set(data); }
+    catch(e){ console.error('save failed', e); alert('Could not save — check your internet connection.'); }
+  }
+  function loadMyId(){
+    return localStorage.getItem(ME_KEY) || null;
+  }
+  function saveMyId(id){
+    if(id) localStorage.setItem(ME_KEY, id);
+    else localStorage.removeItem(ME_KEY);
+  }
+  function subscribeToData(onChange){
+    docRef.onSnapshot(snap => {
+      dataLoaded = true;
+      if(snap.exists){
+        const d = snap.data();
+        data = { people: d.people || [], blocks: d.blocks || [] };
+      } else {
+        data = { people: [], blocks: [] };
+      }
+      onChange();
+    }, err => {
+      console.error('snapshot error', err);
+      dataLoaded = true;
+      $app.innerHTML = `<div style="padding:40px 20px; text-align:center; color:var(--text-dim); font-size:14px;">
+        Couldn't connect to the shared calendar. Check your Firestore security rules allow read/write, and that the config in the file is correct.</div>`;
+    });
+  }
+
+  // ---------- Date helpers ----------
+  function startOfDay(d){ const x = new Date(d); x.setHours(0,0,0,0); return x; }
+  function addDays(d,n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
+  function fmtTime(d){
+    let h = d.getHours(), m = d.getMinutes();
+    const ap = h>=12 ? 'pm':'am';
+    h = h%12; if(h===0) h=12;
+    return h + (m ? ':'+String(m).padStart(2,'0') : '') + ap;
+  }
+  function fmtDow(d){ return d.toLocaleDateString(undefined,{weekday:'short'}); }
+  function fmtDom(d){ return d.getDate(); }
+  function fmtDayLabel(d, todayBase){
+    const diff = Math.round((startOfDay(d)-todayBase)/86400000);
+    if(diff===0) return 'Today';
+    if(diff===1) return 'Tomorrow';
+    return d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'});
+  }
+  function toLocalInputDate(d){
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function toLocalInputTime(d){
+    return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  }
+
+  // ---------- Setup screen ----------
+  function renderSetup(){
+    const existing = data.people;
+    $app.innerHTML = `
+      <div id="setup">
+        <div class="setup-card">
+          <h2>out the <span style="color:var(--accent)">gc</span></h2>
+          <p>Find the window everyone's actually free. First, who are you?</p>
+          ${existing.length ? `
+            <label class="field-label">I'm already in the crew</label>
+            <div class="existing-people">
+              ${existing.map(p => `
+                <div class="person-pick" data-id="${p.id}">
+                  <span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}
+                </div>`).join('')}
+            </div>` : ''}
+          <label class="field-label">Or add yourself</label>
+          <input type="text" id="new-name" placeholder="Your name" maxlength="24">
+          <button class="btn-primary" id="join-btn">Join the crew</button>
+        </div>
+      </div>`;
+
+    $app.querySelectorAll('.person-pick').forEach(el=>{
+      el.addEventListener('click', async ()=>{
+        myId = el.getAttribute('data-id');
+        saveMyId(myId);
+        render();
+      });
+    });
+    document.getElementById('join-btn').addEventListener('click', async ()=>{
+      const input = document.getElementById('new-name');
+      const name = input.value.trim();
+      if(!name) { input.focus(); return; }
+      const p = { id: uid(), name, color: colorFor(data.people.length) };
+      data.people.push(p);
+      await saveData();
+      myId = p.id;
+      saveMyId(myId);
+      hiddenPeople = new Set();
+      render();
+    });
+  }
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---------- Main render ----------
+  function render(){
+    const me = data.people.find(p=>p.id===myId);
+    if(!me){ renderSetup(); return; }
+
+    const today = startOfDay(new Date());
+    const days = Array.from({length:9}, (_,i)=>addDays(today,i));
+    const selectedDate = days[selectedDayOffset];
+
+    const visiblePeople = data.people.filter(p=>!hiddenPeople.has(p.id));
+
+    $app.innerHTML = `
+      <header class="top">
+        <div>
+          <h1>out the <span>gc</span></h1>
+          <div class="tagline"><span class="sync-dot"></span>synced across the crew</div>
+        </div>
+        <div class="me-chip" id="switch-me"><span class="dot" style="background:${me.color}"></span>${escapeHtml(me.name)}</div>
+      </header>
+
+      <div class="section-title">Crew</div>
+      <div class="crew-row" id="crew-row">
+        ${data.people.map(p => `
+          <div class="crew-pill ${hiddenPeople.has(p.id)?'off':''}" data-id="${p.id}">
+            <span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}
+            ${p.id===myId?'<span class="you-tag">(you)</span>':''}
+          </div>`).join('')}
+      </div>
+
+      <div class="section-title">Pick a day</div>
+      <div class="day-strip" id="day-strip">
+        ${days.map((d,i)=>`
+          <div class="day-chip ${i===selectedDayOffset?'active':''}" data-i="${i}">
+            <div class="dow">${fmtDow(d)}</div>
+            <div class="dom">${fmtDom(d)}</div>
+          </div>`).join('')}
+      </div>
+
+      <div class="timeline-card">
+        <h3>${fmtDayLabel(selectedDate, today)}</h3>
+        ${renderTimelineLanes(selectedDate, visiblePeople)}
+        <div class="ticks">
+          <span>6a</span><span>10a</span><span>2p</span><span>6p</span><span>10p</span><span>2a</span>
+        </div>
+      </div>
+
+      <div class="section-title">Good windows, next few days</div>
+      <div class="windows-list" id="windows-list">
+        ${renderGoodWindows(today, visiblePeople)}
+      </div>
+
+      <div class="section-title">${fmtDayLabel(selectedDate, today)}'s plans</div>
+      <div class="timeline-card" style="padding-top:6px;">
+        ${renderBlocksForDay(selectedDate)}
+      </div>
+
+      <div class="fab-row">
+        <button class="btn-secondary" id="import-btn">Import .ics</button>
+        <button class="btn-primary" id="add-btn" style="margin-top:0;">+ Add busy time</button>
+      </div>
+      <input type="file" id="ics-file" accept=".ics" style="display:none;">
+
+      <div class="hint-box">
+        <b>Apple Calendar:</b> there's no way for a website to auto-watch your calendar (Apple blocks that for privacy). Instead, export your calendar as an .ics file — Calendar app → tap a calendar → Share → Export — then hit "Import .ics" above to drop your busy times in.
+      </div>
+    `;
+
+    // bind events
+    document.getElementById('switch-me').addEventListener('click', async ()=>{
+      myId = null; await saveMyId(''); render();
+    });
+    $app.querySelectorAll('#crew-row .crew-pill').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const id = el.getAttribute('data-id');
+        if(hiddenPeople.has(id)) hiddenPeople.delete(id); else hiddenPeople.add(id);
+        render();
+      });
+    });
+    $app.querySelectorAll('#day-strip .day-chip').forEach(el=>{
+      el.addEventListener('click', ()=>{ selectedDayOffset = parseInt(el.getAttribute('data-i')); render(); });
+    });
+    document.getElementById('add-btn').addEventListener('click', ()=>openAddModal(selectedDate));
+    document.getElementById('import-btn').addEventListener('click', ()=>document.getElementById('ics-file').click());
+    document.getElementById('ics-file').addEventListener('change', handleICSUpload);
+    $app.querySelectorAll('.b-del').forEach(el=>{
+      el.addEventListener('click', async ()=>{
+        const id = el.getAttribute('data-id');
+        data.blocks = data.blocks.filter(b=>b.id!==id);
+        await saveData();
+        render();
+      });
+    });
+  }
+
+  // ---------- Timeline math ----------
+  function windowBounds(dayDate){
+    const start = new Date(dayDate); start.setHours(WINDOW_START_HOUR,0,0,0);
+    const end = new Date(dayDate); end.setHours(WINDOW_END_HOUR,0,0,0); // rolls to next day correctly
+    return {start, end};
+  }
+  function pct(date, start, totalMs){
+    let v = (date - start) / totalMs * 100;
+    return Math.max(0, Math.min(100, v));
+  }
+  function blocksOverlapping(personId, start, end){
+    return data.blocks.filter(b => b.personId===personId && new Date(b.start) < end && new Date(b.end) > start);
+  }
+
+  function renderTimelineLanes(dayDate, visiblePeople){
+    const {start, end} = windowBounds(dayDate);
+    const total = end - start;
+    if(visiblePeople.length===0){
+      return `<div class="empty-note">Nobody selected — toggle the crew above.</div>`;
+    }
+    const lanes = visiblePeople.map(p=>{
+      const segs = blocksOverlapping(p.id, start, end).map(b=>{
+        const s = new Date(Math.max(new Date(b.start), start));
+        const e = new Date(Math.min(new Date(b.end), end));
+        const left = pct(s, start, total), right = pct(e, start, total);
+        return `<div class="seg" style="left:${left}%; width:${Math.max(right-left,1)}%; background:${p.color}" title="${escapeHtml(b.title)}"></div>`;
+      }).join('');
+      return `<div class="lane"><div class="lane-label">${escapeHtml(p.name)}</div><div class="lane-track">${segs}</div></div>`;
+    }).join('');
+
+    const free = computeFreeIntervals(start, end, visiblePeople.map(p=>p.id));
+    const freeSegs = free.map(f=>{
+      const left = pct(f.start, start, total), right = pct(f.end, start, total);
+      return `<div class="free-seg" style="left:${left}%; width:${Math.max(right-left,0.5)}%"></div>`;
+    }).join('');
+
+    return lanes + `<div class="lane"><div class="lane-label" style="color:var(--gold)">everyone</div><div class="free-track">${freeSegs}</div></div>`;
+  }
+
+  function computeFreeIntervals(start, end, personIds){
+    // gather busy intervals from these people, merge, invert within [start,end]
+    let intervals = [];
+    data.blocks.forEach(b=>{
+      if(!personIds.includes(b.personId)) return;
+      const s = new Date(b.start), e = new Date(b.end);
+      if(e <= start || s >= end) return;
+      intervals.push([new Date(Math.max(s,start)), new Date(Math.min(e,end))]);
+    });
+    intervals.sort((a,b)=>a[0]-b[0]);
+    const merged = [];
+    intervals.forEach(iv=>{
+      if(merged.length && iv[0] <= merged[merged.length-1][1]){
+        merged[merged.length-1][1] = new Date(Math.max(merged[merged.length-1][1], iv[1]));
+      } else merged.push(iv);
+    });
+    const free = [];
+    let cursor = new Date(start);
+    merged.forEach(iv=>{
+      if(iv[0] > cursor) free.push({start:new Date(cursor), end:new Date(iv[0])});
+      if(iv[1] > cursor) cursor = new Date(iv[1]);
+    });
+    if(cursor < end) free.push({start:cursor, end:new Date(end)});
+    return free;
+  }
+
+  function renderGoodWindows(today, visiblePeople){
+    if(visiblePeople.length===0) return `<div class="no-window">Select some crew members above.</div>`;
+    const personIds = visiblePeople.map(p=>p.id);
+    let out = [];
+    for(let i=0;i<9;i++){
+      const day = addDays(today,i);
+      const {start,end} = windowBounds(day);
+      const free = computeFreeIntervals(start,end,personIds).filter(f => (f.end-f.start) >= 60*60000);
+      free.forEach(f=>{
+        out.push({day, start:f.start, end:f.end});
+      });
+    }
+    if(out.length===0) return `<div class="no-window">No shared free hour in the next 9 days. Someone's busy a lot.</div>`;
+    return out.slice(0,8).map(w=>`
+      <div class="window-item">
+        <div><span class="w-day">${fmtDayLabel(w.day, today)}</span><span class="w-time">${fmtTime(w.start)}–${fmtTime(w.end)}</span></div>
+      </div>`).join('');
+  }
+
+  function renderBlocksForDay(dayDate){
+    const dayStart = startOfDay(dayDate), dayEnd = addDays(dayStart,1);
+    const items = data.blocks
+      .filter(b => new Date(b.start) < dayEnd && new Date(b.end) > dayStart)
+      .sort((a,b)=> new Date(a.start)-new Date(b.start));
+    if(items.length===0) return `<div class="empty-note">Nothing on the books for this day yet.</div>`;
+    return items.map(b=>{
+      const p = data.people.find(pp=>pp.id===b.personId);
+      const canDelete = b.personId===myId;
+      return `<div class="block-item">
+        <span class="dot" style="background:${p?p.color:'#888'}"></span>
+        <div class="b-title">${escapeHtml(b.title)} <span style="color:var(--text-dimmer)">— ${p?escapeHtml(p.name):'?'}</span></div>
+        <div class="b-time">${b.allDay ? 'all day' : fmtTime(new Date(b.start))+'–'+fmtTime(new Date(b.end))}</div>
+        ${canDelete ? `<button class="b-del" data-id="${b.id}">×</button>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // ---------- Add busy modal ----------
+  function openAddModal(defaultDate){
+    modalOpen = true;
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal-sheet">
+        <h3>Add busy time</h3>
+        <div class="modal-sub">This blocks you out on the shared calendar.</div>
+        <label class="field-label">What's up</label>
+        <input type="text" id="m-title" placeholder="e.g. work trip, dentist, out of town" maxlength="40">
+        <div class="row-2">
+          <div>
+            <label class="field-label">Start date</label>
+            <input type="date" id="m-start-date" value="${toLocalInputDate(defaultDate)}">
+          </div>
+          <div>
+            <label class="field-label">End date</label>
+            <input type="date" id="m-end-date" value="${toLocalInputDate(defaultDate)}">
+          </div>
+        </div>
+        <div class="row-2" id="time-row">
+          <div>
+            <label class="field-label">Start time</label>
+            <input type="time" id="m-start-time" value="09:00">
+          </div>
+          <div>
+            <label class="field-label">End time</label>
+            <input type="time" id="m-end-time" value="17:00">
+          </div>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="m-allday"> All day / multi-day
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="m-cancel">Cancel</button>
+          <button class="btn-primary" id="m-save">Save</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const allDayBox = backdrop.querySelector('#m-allday');
+    const timeRow = backdrop.querySelector('#time-row');
+    allDayBox.addEventListener('change', ()=>{ timeRow.style.display = allDayBox.checked ? 'none' : 'flex'; });
+
+    backdrop.querySelector('#m-cancel').addEventListener('click', ()=>{ document.body.removeChild(backdrop); modalOpen=false; });
+    backdrop.querySelector('#m-save').addEventListener('click', async ()=>{
+      const title = backdrop.querySelector('#m-title').value.trim() || 'Busy';
+      const allDay = allDayBox.checked;
+      const sd = backdrop.querySelector('#m-start-date').value;
+      const ed = backdrop.querySelector('#m-end-date').value;
+      let start, end;
+      if(allDay){
+        start = new Date(sd+'T00:00:00');
+        end = new Date(ed+'T23:59:59');
+      } else {
+        const st = backdrop.querySelector('#m-start-time').value;
+        const et = backdrop.querySelector('#m-end-time').value;
+        start = new Date(sd+'T'+st+':00');
+        end = new Date(ed+'T'+et+':00');
+      }
+      if(end <= start){ alert('End has to be after start.'); return; }
+      data.blocks.push({ id: uid(), personId: myId, title, start: start.toISOString(), end: end.toISOString(), allDay, source: 'manual' });
+      await saveData();
+      document.body.removeChild(backdrop);
+      modalOpen = false;
+      render();
+    });
+  }
+
+  // ---------- ICS import ----------
+  function parseICSDate(raw){
+    // raw like 20260705T140000Z or 20260705T140000 or 20260705
+    const isUTC = raw.endsWith('Z');
+    const clean = raw.replace('Z','');
+    if(clean.length===8){
+      const y = clean.slice(0,4), mo=clean.slice(4,6), d=clean.slice(6,8);
+      return { date: new Date(`${y}-${mo}-${d}T00:00:00`), allDay: true };
+    }
+    const y = clean.slice(0,4), mo=clean.slice(4,6), d=clean.slice(6,8);
+    const h = clean.slice(9,11), mi=clean.slice(11,13), s=clean.slice(13,15) || '00';
+    if(isUTC){
+      return { date: new Date(Date.UTC(+y, +mo-1, +d, +h, +mi, +s)), allDay:false };
+    }
+    return { date: new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}`), allDay:false };
+  }
+
+  async function handleICSUpload(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    const text = await file.text();
+    const events = text.split('BEGIN:VEVENT').slice(1);
+    const now = new Date();
+    const horizon = addDays(now, 90);
+    let added = 0;
+    events.forEach(chunk=>{
+      const end = chunk.indexOf('END:VEVENT');
+      const body = end>=0 ? chunk.slice(0,end) : chunk;
+      const summaryMatch = body.match(/SUMMARY:(.*)/);
+      const dtStartMatch = body.match(/DTSTART[^:]*:(\d{8}T?\d{0,6}Z?)/);
+      const dtEndMatch = body.match(/DTEND[^:]*:(\d{8}T?\d{0,6}Z?)/);
+      if(!dtStartMatch || !dtEndMatch) return;
+      const sInfo = parseICSDate(dtStartMatch[1]);
+      const eInfo = parseICSDate(dtEndMatch[1]);
+      if(sInfo.date < now || sInfo.date > horizon) return;
+      const title = summaryMatch ? summaryMatch[1].trim().slice(0,40) : 'Busy';
+      data.blocks.push({
+        id: uid(), personId: myId, title,
+        start: sInfo.date.toISOString(), end: eInfo.date.toISOString(),
+        allDay: sInfo.allDay, source: 'ics-import'
+      });
+      added++;
+    });
+    await saveData();
+    e.target.value = '';
+    render();
+    if(added>0) alert(`Imported ${added} event${added===1?'':'s'} from your calendar.`);
+    else alert("Couldn't find any upcoming events in that file.");
+  }
+
+  // ---------- Boot ----------
+  function handleUpdate(){
+    if(modalOpen) return; // don't yank the calendar out from under an open form
+    render();
+  }
+
+  function boot(){
+    myId = loadMyId();
+    if(NOT_CONFIGURED){
+      $app.innerHTML = `<div style="padding:40px 20px; text-align:center; color:var(--text-dim); font-size:14px; line-height:1.6;">
+        <b style="color:var(--text)">Firebase isn't set up yet.</b><br><br>
+        Open this file and paste your Firebase project config into the <code>firebaseConfig</code> object near the top of the script.</div>`;
+      return;
+    }
+    $app.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;">Loading the crew's calendar…</div>`;
+    subscribeToData(handleUpdate);
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
