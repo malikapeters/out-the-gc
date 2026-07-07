@@ -10,18 +10,18 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
-    --bg: #12141c;
-    --surface: #1b1f2c;
-    --surface-2: #242a3b;
-    --line: rgba(255,255,255,0.09);
-    --text: #f1efe9;
-    --text-dim: #8d93a8;
-    --text-dimmer: #5f6478;
-    --accent: #6c7bff;
-    --accent-dim: rgba(108,123,255,0.16);
-    --gold: #ffc857;
-    --gold-dim: rgba(255,200,87,0.14);
-    --danger: #ff6b6b;
+    --bg: #f4f2ec;
+    --surface: #ffffff;
+    --surface-2: #f0ede4;
+    --line: rgba(20,20,30,0.10);
+    --text: #1b1f2c;
+    --text-dim: #6b7280;
+    --text-dimmer: #9aa0b3;
+    --accent: #5b62e8;
+    --accent-dim: rgba(91,98,232,0.10);
+    --gold: #e6a935;
+    --gold-dim: rgba(230,169,53,0.14);
+    --danger: #e0453b;
     --font-display: 'Space Grotesk', sans-serif;
     --font-body: 'Inter', sans-serif;
     --font-mono: 'IBM Plex Mono', monospace;
@@ -122,7 +122,7 @@
   .day-cell.other-month{ opacity: 0.32; }
   .day-cell.today .day-num{ color: var(--accent); font-weight:700; }
   .day-cell.selected{ border-color: var(--accent); }
-  .day-cell.free-day{ background: var(--gold-dim); border-color: rgba(255,200,87,0.45); }
+  .day-cell.free-day{ background: var(--gold-dim); border-color: rgba(230,169,53,0.5); }
   .day-cell.free-day.selected{ border-color: var(--gold); }
   .day-num{ font-family: var(--font-mono); font-size:11px; color: var(--text-dim); margin-bottom:3px; text-align:center; }
   .day-pills{ display:flex; flex-direction:column; gap:2px; }
@@ -138,7 +138,7 @@
   .windows-list{ margin-top: 10px; display:flex; flex-direction:column; gap:8px; }
   .window-item{
     display:flex; justify-content:space-between; align-items:center;
-    background: var(--gold-dim); border: 1px solid rgba(255,200,87,0.3); border-radius: 10px;
+    background: var(--gold-dim); border: 1px solid rgba(230,169,53,0.35); border-radius: 10px;
     padding: 10px 13px; font-size: 13px;
   }
   .window-item .w-day{ color: var(--text-dim); font-size: 11px; margin-right:6px; }
@@ -182,7 +182,7 @@
     padding: 14px 16px; font-size: 12px; color: var(--text-dim); line-height: 1.6;
   }
   .hint-box b{ color: var(--text); }
-  .sync-dot{ display:inline-block; width:6px; height:6px; border-radius:50%; background: #4ade80; margin-right:5px; }
+  .sync-dot{ display:inline-block; width:6px; height:6px; border-radius:50%; background: #16a34a; margin-right:5px; }
 
   ::-webkit-scrollbar{ height: 6px; width:6px; }
   ::-webkit-scrollbar-thumb{ background: var(--surface-2); border-radius:4px; }
@@ -386,7 +386,6 @@
       <div class="fab-row">
         <button class="btn-primary" id="add-btn" style="margin-top:0;">+ Add busy time</button>
       </div>
-      <input type="file" id="ics-file" accept=".ics" style="display:none;">
     `;
 
     // bind events
@@ -415,8 +414,6 @@
       });
     });
     document.getElementById('add-btn').addEventListener('click', ()=>openAddModal(selectedDate));
-    document.getElementById('import-btn').addEventListener('click', ()=>document.getElementById('ics-file').click());
-    document.getElementById('ics-file').addEventListener('change', handleICSUpload);
     $app.querySelectorAll('.b-del').forEach(el=>{
       el.addEventListener('click', async ()=>{
         const id = el.getAttribute('data-id');
@@ -635,56 +632,6 @@
       modalOpen = false;
       render();
     });
-  }
-
-  // ---------- ICS import ----------
-  function parseICSDate(raw){
-    // raw like 20260705T140000Z or 20260705T140000 or 20260705
-    const isUTC = raw.endsWith('Z');
-    const clean = raw.replace('Z','');
-    if(clean.length===8){
-      const y = clean.slice(0,4), mo=clean.slice(4,6), d=clean.slice(6,8);
-      return { date: new Date(`${y}-${mo}-${d}T00:00:00`), allDay: true };
-    }
-    const y = clean.slice(0,4), mo=clean.slice(4,6), d=clean.slice(6,8);
-    const h = clean.slice(9,11), mi=clean.slice(11,13), s=clean.slice(13,15) || '00';
-    if(isUTC){
-      return { date: new Date(Date.UTC(+y, +mo-1, +d, +h, +mi, +s)), allDay:false };
-    }
-    return { date: new Date(`${y}-${mo}-${d}T${h}:${mi}:${s}`), allDay:false };
-  }
-
-  async function handleICSUpload(e){
-    const file = e.target.files[0];
-    if(!file) return;
-    const text = await file.text();
-    const events = text.split('BEGIN:VEVENT').slice(1);
-    const now = new Date();
-    const horizon = addDays(now, 90);
-    let added = 0;
-    events.forEach(chunk=>{
-      const end = chunk.indexOf('END:VEVENT');
-      const body = end>=0 ? chunk.slice(0,end) : chunk;
-      const summaryMatch = body.match(/SUMMARY:(.*)/);
-      const dtStartMatch = body.match(/DTSTART[^:]*:(\d{8}T?\d{0,6}Z?)/);
-      const dtEndMatch = body.match(/DTEND[^:]*:(\d{8}T?\d{0,6}Z?)/);
-      if(!dtStartMatch || !dtEndMatch) return;
-      const sInfo = parseICSDate(dtStartMatch[1]);
-      const eInfo = parseICSDate(dtEndMatch[1]);
-      if(sInfo.date < now || sInfo.date > horizon) return;
-      const title = summaryMatch ? summaryMatch[1].trim().slice(0,40) : 'Busy';
-      data.blocks.push({
-        id: uid(), personId: myId, title,
-        start: sInfo.date.toISOString(), end: eInfo.date.toISOString(),
-        allDay: sInfo.allDay, source: 'ics-import'
-      });
-      added++;
-    });
-    await saveData();
-    e.target.value = '';
-    render();
-    if(added>0) alert(`Imported ${added} event${added===1?'':'s'} from your calendar.`);
-    else alert("Couldn't find any upcoming events in that file.");
   }
 
   // ---------- Boot ----------
