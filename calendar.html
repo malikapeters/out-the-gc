@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>out the gc — family day planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg: #12141c;
+    --surface: #1b1f2c;
+    --surface-2: #242a3b;
+    --line: rgba(255,255,255,0.09);
+    --text: #f1efe9;
+    --text-dim: #8d93a8;
+    --text-dimmer: #5f6478;
+    --accent: #6c7bff;
+    --accent-dim: rgba(91,98,232,0.10);
+    --gold: #e6a935;
+    --gold-dim: rgba(230,169,53,0.14);
+    --green: #4ade80;
+    --green-dim: rgba(74,222,128,0.10);
+    --danger: #e0453b;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+    --radius: 14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  #app{ max-width: 720px; margin: 0 auto; padding: 20px 16px 80px; }
+
+  /* Nav bar */
+  .nav-bar{display:flex;gap:8px;margin-bottom:16px;}
+  .nav-link{padding:8px 14px;border-radius:999px;font-size:13px;color:var(--text-dim);background:var(--surface);border:1px solid var(--line);text-decoration:none;transition:all .15s;font-weight:500;}
+  .nav-link:hover{border-color:var(--accent);color:var(--text);}
+  .nav-link.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);}
+
+
+  /* ---------- Header ---------- */
+  header.top{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom: 18px; }
+  header.top h1{
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  header.top h1 span{ color: var(--accent); }
+  header.top .tagline{ font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .me-chip{
+    display:flex; align-items:center; gap:6px;
+    background: var(--surface); border:1px solid var(--line);
+    padding: 6px 10px; border-radius: 999px; font-size: 12px; color: var(--text-dim);
+    cursor:pointer; white-space:nowrap;
+  }
+  .dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; display:inline-block; }
+
+  /* ---------- Setup gate ---------- */
+  #setup{ display:flex; align-items:center; justify-content:center; min-height: 80vh; }
+  .setup-card{
+    background: var(--surface); border:1px solid var(--line); border-radius: var(--radius);
+    padding: 28px 24px; width: 100%; max-width: 380px;
+  }
+  .setup-card h2{ font-family: var(--font-display); font-size: 20px; margin: 0 0 4px; }
+  .setup-card p{ color: var(--text-dim); font-size: 13px; margin: 0 0 18px; line-height:1.5;}
+  .existing-people{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom: 16px; }
+  .person-pick{
+    display:flex; align-items:center; gap:6px; background: var(--surface-2); border:1px solid var(--line);
+    padding: 7px 12px; border-radius: 999px; font-size: 13px; cursor:pointer;
+  }
+  .person-pick:hover{ border-color: var(--accent); }
+
+  input[type=text], input[type=date], input[type=time], input[type=number]{
+    width:100%; background: var(--surface-2); border:1px solid var(--line); color: var(--text);
+    padding: 10px 12px; border-radius: 8px; font-size: 14px; font-family: var(--font-body);
+  }
+  input:focus{ outline: none; border-color: var(--accent); }
+  label.field-label{ font-size: 11px; text-transform:uppercase; letter-spacing:0.06em; color: var(--text-dimmer); display:block; margin: 14px 0 6px; }
+
+  button{ font-family: var(--font-body); cursor:pointer; border:none; }
+  .btn-primary{
+    background: var(--accent); color: #fff; padding: 11px 16px; border-radius: 9px;
+    font-size: 14px; font-weight: 600; width:100%; margin-top: 18px;
+  }
+  .btn-primary:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn-secondary{
+    background: var(--surface-2); color: var(--text); padding: 10px 14px; border-radius: 9px;
+    font-size: 13px; font-weight: 500; border:1px solid var(--line);
+  }
+
+  /* ---------- Section titles ---------- */
+  .section-title{
+    font-family: var(--font-display); font-size: 13px; text-transform:uppercase; letter-spacing:0.08em;
+    color: var(--text-dimmer); margin: 26px 0 10px;
+  }
+
+  /* ---------- Crew ---------- */
+  .crew-row{ display:flex; flex-wrap:wrap; gap:8px; }
+  .crew-pill{
+    display:flex; align-items:center; gap:7px; background: var(--surface); border:1px solid var(--line);
+    padding: 7px 11px 7px 8px; border-radius: 999px; font-size: 13px; cursor:pointer; transition: opacity .15s;
+  }
+  .crew-pill.off{ opacity: 0.35; }
+  .crew-pill .you-tag{ font-size: 10px; color: var(--text-dimmer); }
+
+  /* ---------- Hero card ---------- */
+  .hero-card{
+    display:flex; align-items:center; gap:14px;
+    background: linear-gradient(135deg, var(--surface), var(--surface-2));
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; margin-bottom: 4px;
+  }
+  .hero-card.all-ready{
+    border-color: rgba(74,222,128,0.5);
+    background: linear-gradient(135deg, rgba(74,222,128,0.10), var(--surface));
+  }
+  .hero-icon{ font-size: 36px; flex-shrink:0; }
+  .hero-content{ flex:1; min-width:0; }
+  .hero-title{ font-family: var(--font-display); font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+  .hero-day{ font-family: var(--font-display); font-size: 20px; font-weight: 600; margin: 2px 0; }
+  .hero-weather{ font-size: 13px; color: var(--text-dim); }
+  .hero-avail{ font-size: 13px; color: var(--gold); font-weight: 500; margin-top: 3px; }
+  .hero-card.all-ready .hero-avail{ color: var(--green); }
+  .hero-smiley{ font-size: 28px; flex-shrink:0; }
+
+  /* ---------- Weather today ---------- */
+  .weather-today-card{
+    display:flex; align-items:center; gap:14px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .wt-emoji{ font-size: 32px; flex-shrink:0; }
+  .wt-info{ flex:1; }
+  .wt-temp{ font-family: var(--font-mono); font-size: 15px; font-weight: 500; }
+  .wt-desc{ font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .wt-extras{ display:flex; flex-direction:column; gap:4px; font-size: 11px; color: var(--text-dim); text-align:right; }
+  .wt-refresh{ background:none; color: var(--text-dim); font-size: 11px; cursor:pointer; border:none; margin-top:4px; }
+  .wt-refresh:hover{ color: var(--accent); }
+
+  /* ---------- Month calendar grid ---------- */
+  .month-card{ background: var(--surface); border:1px solid var(--line); border-radius: var(--radius); padding: 14px 10px 16px; }
+  .month-header{ display:flex; align-items:center; justify-content:space-between; padding: 0 6px 12px; }
+  .month-label{ font-family: var(--font-display); font-size:16px; font-weight:600; }
+  .month-nav-btn{ background: var(--surface-2); color: var(--text); width:30px; height:30px; border-radius:8px; font-size:16px; border:1px solid var(--line); line-height:1; }
+  .weekday-row{ display:grid; grid-template-columns: repeat(7,1fr); margin-bottom:5px; }
+  .weekday-row span{ text-align:center; font-size:10px; color: var(--text-dimmer); text-transform:uppercase; letter-spacing:0.04em; }
+  .month-grid{ display:flex; flex-direction:column; gap:3px; }
+  .week-row{ display:grid; grid-template-columns: repeat(7,1fr); gap:3px; }
+  .day-cell{
+    background: var(--surface-2); border-radius:8px; min-height: 68px; padding: 5px 3px;
+    border: 1px solid transparent; overflow:hidden; cursor:pointer; position:relative;
+    transition: background .15s, border-color .15s;
+  }
+  .day-cell.other-month{ opacity: 0.32; }
+  .day-cell.today .day-num{ color: var(--accent); font-weight:700; }
+  .day-cell.selected{ border-color: var(--accent); border-width: 2px; }
+  .day-cell.free-day{ background: var(--green-dim); border-color: rgba(74,222,128,0.3); }
+  .day-cell.free-day.selected{ border-color: var(--green); }
+  .day-cell.good-weather{ background: var(--gold-dim); border-color: rgba(230,169,53,0.4); }
+  .day-cell.good-weather .day-num{ color: var(--gold); font-weight:700; }
+  .day-cell.good-weather.selected{ border-color: var(--gold); }
+  .day-cell.good-weather.free-day{
+    background: linear-gradient(135deg, var(--gold-dim), var(--green-dim));
+    border-color: rgba(230,169,53,0.5);
+  }
+  .day-cell.good-weather.free-day.selected{ border-color: var(--gold); border-width: 2px; }
+  .day-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom: 2px; }
+  .day-num{ font-family: var(--font-mono); font-size:11px; color: var(--text-dim); }
+  .day-wx{ font-size: 10px; }
+  .day-avail-dots{ display:flex; gap:2px; flex-wrap:wrap; margin: 2px 0; min-height:5px; }
+  .avail-dot{ width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+  .day-pills{ display:flex; flex-direction:column; gap:2px; }
+  .pill{
+    font-size:8.5px; padding:2px 4px; border-radius:4px; border:1px solid transparent;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.35; font-weight:600;
+  }
+  .pill-more{ font-size:8.5px; color: var(--text-dimmer); padding:0 4px; font-weight:500; }
+  .legend-row{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; padding: 0 2px; }
+  .legend-item{ display:flex; align-items:center; gap:5px; font-size:11px; color: var(--text-dim); }
+
+  /* ---------- Best family days list ---------- */
+  .family-days-list{ margin-top: 10px; display:flex; flex-direction:column; gap:8px; }
+  .family-day-item{
+    display:flex; align-items:center; gap:12px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; cursor:pointer; transition: border-color .15s;
+  }
+  .family-day-item:hover{ border-color: var(--accent); }
+  .family-day-item.all-ready{ border-color: rgba(74,222,128,0.5); background: rgba(74,222,128,0.06); }
+  .fd-emoji{ font-size: 24px; flex-shrink:0; }
+  .fd-info{ flex:1; min-width:0; }
+  .fd-date{ font-size: 14px; font-weight: 600; }
+  .fd-weather{ font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .fd-avail-bar{ height: 4px; border-radius: 2px; background: var(--surface-2); margin-top: 6px; overflow:hidden; }
+  .fd-avail-fill{ height: 100%; background: var(--gold); border-radius: 2px; transition: width .2s; }
+  .family-day-item.all-ready .fd-avail-fill{ background: var(--green); }
+  .fd-smiley{ font-size: 18px; flex-shrink:0; }
+  .fd-count{ font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text-dim); flex-shrink:0; min-width: 28px; text-align:right; }
+  .no-window{ color: var(--text-dim); font-size: 13px; padding: 14px 0; text-align:center; }
+
+  /* ---------- Day details ---------- */
+  .day-weather-row{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding-bottom: 12px; border-bottom: 1px solid var(--line); margin-bottom: 12px;
+  }
+  .dw-emoji{ font-size: 22px; }
+  .dw-desc{ font-size: 13px; }
+  .dw-temp{ font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); }
+  .dw-extra{ font-size: 11px; color: var(--text-dimmer); }
+  .day-weather-badge{
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--gold-dim); border: 1px solid rgba(230,169,53,0.35);
+    border-radius: 999px; padding: 3px 10px; font-size: 11px; color: var(--gold); font-weight:600;
+  }
+
+  /* Availability */
+  .avail-section{ margin-bottom: 14px; }
+  .avail-title{ font-size: 11px; color: var(--text-dimmer); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .avail-toggle{
+    display:flex; align-items:center; gap:8px; width:100%;
+    background: var(--surface-2); border: 1px solid var(--line);
+    padding: 11px 14px; border-radius: 10px; font-size: 14px; cursor:pointer; transition: all .15s;
+  }
+  .avail-toggle:hover{ border-color: var(--accent); }
+  .avail-toggle.on{ background: var(--gold-dim); border-color: var(--gold); }
+  .avail-toggle .avail-label{ flex:1; }
+  .avail-toggle .avail-check{ color: var(--gold); font-size: 18px; font-weight:700; }
+  .avail-toggle:not(.on) .avail-check{ display:none; }
+  .avail-toggle:not(.on) .avail-hint{ display:inline; }
+  .avail-toggle.on .avail-hint{ display:none; }
+  .avail-hint{ font-size: 11px; color: var(--text-dimmer); margin-left:auto; }
+  .avail-list{ margin-top: 10px; }
+  .avail-person{ display:flex; align-items:center; gap:8px; padding: 5px 0; font-size: 13px; }
+  .avail-person .avail-name{ flex:1; }
+  .avail-status-badge{ font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight:500; }
+  .avail-status-badge.yes{ background: rgba(74,222,128,0.15); color: var(--green); }
+  .avail-status-badge.no{ background: var(--surface-2); color: var(--text-dimmer); }
+  .avail-divider{ height:1px; background: var(--line); margin: 14px 0; }
+
+  /* Blocks */
+  .block-item{
+    display:flex; align-items:center; gap:10px; padding: 10px 4px; border-bottom: 1px solid var(--line);
+  }
+  .block-item:last-child{ border-bottom:none; }
+  .block-item .b-title{ font-size:13px; flex:1; }
+  .block-item .b-time{ font-family: var(--font-mono); font-size:11px; color: var(--text-dim); }
+  .block-item .b-del{ color: var(--danger); font-size: 16px; line-height:1; padding: 4px 6px; background:none; }
+
+  /* ---------- Admin manage crew ---------- */
+  .admin-person-row{
+    display:flex; align-items:center; gap:10px; padding:10px 4px;
+    border-bottom: 1px solid var(--line);
+  }
+  .admin-person-row:last-child{ border-bottom:none; }
+  .admin-person-row .ap-name{ flex:1; font-size:14px; }
+  .admin-person-row .ap-badge{
+    font-size:10px; padding:2px 8px; border-radius:999px;
+    background: var(--accent-dim); color: var(--accent); font-weight:600;
+  }
+  .admin-person-row .ap-del{
+    color: var(--danger); font-size:16px; line-height:1; padding:4px 8px;
+    background:none; border:none; cursor:pointer;
+  }
+  .empty-note{ color: var(--text-dimmer); font-size:13px; padding: 10px 0; }
+
+  /* ---------- Floating actions ---------- */
+  .fab-row{ display:flex; gap:10px; margin-top: 20px; }
+  .fab-row button{ flex:1; padding: 12px; border-radius: 10px; font-size: 13px; font-weight:600; }
+
+  /* ---------- Modal ---------- */
+  .modal-backdrop{
+    position:fixed; inset:0; background: rgba(0,0,0,0.55); display:flex; align-items:flex-end; justify-content:center;
+    z-index: 50;
+  }
+  .modal-sheet{
+    background: var(--surface); border-radius: 18px 18px 0 0; padding: 22px 20px 28px; width:100%; max-width: 480px;
+    border-top: 1px solid var(--line);
+  }
+  .modal-sheet h3{ font-family: var(--font-display); margin: 0 0 4px; font-size: 18px; }
+  .modal-sheet .modal-sub{ font-size:12px; color: var(--text-dim); margin-bottom: 6px; }
+  .row-2{ display:flex; gap:10px; }
+  .row-2 > div{ flex:1; }
+  .checkbox-row{ display:flex; align-items:center; gap:8px; margin-top:14px; font-size:13px; color: var(--text-dim); }
+  .modal-actions{ display:flex; gap:10px; margin-top: 20px; }
+  .modal-actions .btn-secondary{ flex:1; }
+  .modal-actions .btn-primary{ flex:1; margin-top:0; }
+
+  .hint-box{
+    margin-top: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px; font-size: 12px; color: var(--text-dim); line-height: 1.6;
+  }
+  .hint-box b{ color: var(--text); }
+  .reset-btn{
+    display:block; margin: 20px auto 0; background:none; border:none;
+    color: var(--text-dimmer); font-size: 12px; cursor:pointer; padding: 8px 14px;
+    text-decoration: underline; transition: color .15s;
+  }
+  .reset-btn:hover{ color: var(--danger); }
+  .sync-dot{ display:inline-block; width:6px; height:6px; border-radius:50%; background: #16a34a; margin-right:5px; }
+
+  ::-webkit-scrollbar{ height: 6px; width:6px; }
+  ::-webkit-scrollbar-thumb{ background: var(--surface-2); border-radius:4px; }
+</style>
+</head>
+<body>
+<div id="app"><div id="setup"></div></div>
+
+<script>
+(function(){
+  // ============================================================
+  // FIREBASE CONFIG
+  // ============================================================
+  const firebaseConfig = {
+    apiKey: "AIzaSyAhnmtS3glZ4nblArjJix67o-mVu6h7Ehc",
+    authDomain: "out-the-gc-929b1.firebaseapp.com",
+    projectId: "out-the-gc-929b1",
+    storageBucket: "out-the-gc-929b1.firebasestorage.app",
+    messagingSenderId: "910472157095",
+    appId: "1:910472157095:web:929ed62214747ce18f4882"
+  };
+  const NOT_CONFIGURED = firebaseConfig.apiKey === "PASTE_YOUR_API_KEY";
+
+  let db = null, docRef = null;
+  if(!NOT_CONFIGURED){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    docRef = db.collection('outthegc').doc('shared');
+  }
+
+  // ============================================================
+  // CONSTANTS
+  // ============================================================
+  const PALETTE = ['#6c7bff','#ff6b6b','#4ade80','#ffc857','#c084fc','#38bdf8','#fb923c','#f472b6'];
+  const CAPE_TOWN = { lat: -33.9249, lon: 18.4241 };
+  const WEATHER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=' + CAPE_TOWN.lat + '&longitude=' + CAPE_TOWN.lon
+    + '&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weather_code,wind_speed_10m_max,cloud_cover_mean'
+    + '&timezone=Africa/Johannesburg&forecast_days=16';
+  const SEASONAL_WEATHER_URL = 'https://seasonal-api.open-meteo.com/v1/seasonal?latitude=' + CAPE_TOWN.lat + '&longitude=' + CAPE_TOWN.lon
+    + '&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weather_code,wind_speed_10m_max,cloud_cover_mean'
+    + '&timezone=Africa/Johannesburg&forecast_days=92';
+  const GOOD_WEATHER_THRESHOLD = 65;
+  const ME_KEY = 'gc-my-person-id';
+
+  // ============================================================
+  // STATE
+  // ============================================================
+  let data = { people: [], blocks: [], availability: [] };
+  let myId = null;
+  let monthAnchor = startOfMonthSafe(new Date());
+  let selectedDate = startOfDaySafe(new Date());
+  let hiddenPeople = new Set();
+  let modalOpen = false;
+  let weatherData = null;
+
+  // ============================================================
+  // UTILITIES
+  // ============================================================
+  function startOfMonthSafe(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function startOfDaySafe(d){ const x = new Date(d); x.setHours(0,0,0,0); return x; }
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2) + Date.now());
+  function colorFor(index){ return PALETTE[index % PALETTE.length]; }
+  // Check if person is admin (Malika is always admin)
+  function isAdmin(p){ return p && (p.isAdmin === true || p.name === 'Malika'); }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // Date helpers
+  function startOfDay(d){ const x = new Date(d); x.setHours(0,0,0,0); return x; }
+  function addDays(d,n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
+  function addMonths(d,n){ return new Date(d.getFullYear(), d.getMonth()+n, 1); }
+  function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function sameDay(a,b){ return startOfDay(a).getTime() === startOfDay(b).getTime(); }
+  function fmtTime(d){
+    let h = d.getHours(), m = d.getMinutes();
+    const ap = h>=12 ? 'pm':'am';
+    h = h%12; if(h===0) h=12;
+    return h + (m ? ':'+String(m).padStart(2,'0') : '') + ap;
+  }
+  function fmtDayLabel(d, todayBase){
+    const diff = Math.round((startOfDay(d)-todayBase)/86400000);
+    if(diff===0) return 'Today';
+    if(diff===1) return 'Tomorrow';
+    return d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'});
+  }
+  function toLocalInputDate(d){
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function toLocalInputTime(d){
+    return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  }
+  function toWeatherDateStr(d){
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+
+  // ============================================================
+  // WEATHER
+  // ============================================================
+  async function fetchWeather(){
+    try{
+      const [stdResp, seasResp] = await Promise.all([
+        fetch(WEATHER_URL),
+        fetch(SEASONAL_WEATHER_URL)
+      ]);
+      const std = stdResp.ok ? await stdResp.json() : null;
+      const seas = seasResp.ok ? await seasResp.json() : null;
+      if(!std && !seas) throw new Error('Both weather APIs failed');
+      if(std && !seas){ weatherData = std; }
+      else if(seas && !std){ weatherData = seas; }
+      else {
+        // Merge: standard forecast for first 16 days, seasonal for the rest
+        const VK = ['time','temperature_2m_max','temperature_2m_min','precipitation_sum','precipitation_probability_max','weather_code','wind_speed_10m_max','cloud_cover_mean'];
+        const merged = { daily: {} };
+        VK.forEach(k => merged.daily[k] = []);
+        const stdSet = new Set(std.daily.time);
+        // Standard forecast days (more accurate, first 16)
+        std.daily.time.forEach((date, i) => {
+          VK.forEach(k => merged.daily[k].push(std.daily[k][i]));
+        });
+        // Seasonal days not already covered by standard
+        seas.daily.time.forEach((date, i) => {
+          if(!stdSet.has(date)){
+            VK.forEach(k => {
+              const v = seas.daily[k] ? seas.daily[k][i] : null;
+              merged.daily[k].push(k === 'precipitation_probability_max' ? (v || 0) : v);
+            });
+          }
+        });
+        weatherData = merged;
+      }
+      if(!modalOpen) render();
+    }catch(e){
+      console.error('weather fetch failed', e);
+    }
+  }
+
+  function weatherEmoji(code){
+    const m = {
+      0:'☀️', 1:'🌤️', 2:'⛅', 3:'☁️',
+      45:'🌫️', 48:'🌫️',
+      51:'🌦️', 53:'🌦️', 55:'🌧️',
+      56:'🌧️', 57:'🌧️',
+      61:'🌦️', 63:'🌧️', 65:'🌧️',
+      66:'🌧️', 67:'🌧️',
+      71:'🌨️', 73:'🌨️', 75:'❄️', 77:'🌨️',
+      80:'🌦️', 81:'🌧️', 82:'⛈️',
+      85:'🌨️', 86:'❄️',
+      95:'⛈️', 96:'⛈️', 99:'⛈️'
+    };
+    return m[code] || '🌤️';
+  }
+
+  function weatherDesc(code){
+    const m = {
+      0:'Clear sky', 1:'Mainly clear', 2:'Partly cloudy', 3:'Overcast',
+      45:'Foggy', 48:'Foggy',
+      51:'Light drizzle', 53:'Drizzle', 55:'Heavy drizzle',
+      56:'Freezing drizzle', 57:'Freezing drizzle',
+      61:'Light rain', 63:'Rain', 65:'Heavy rain',
+      66:'Freezing rain', 67:'Freezing rain',
+      71:'Light snow', 73:'Snow', 75:'Heavy snow', 77:'Snow grains',
+      80:'Light showers', 81:'Showers', 82:'Heavy showers',
+      85:'Snow showers', 86:'Heavy snow showers',
+      95:'Thunderstorm', 96:'Thunderstorm', 99:'Thunderstorm'
+    };
+    return m[code] || 'Unknown';
+  }
+
+  function weatherScore(day){
+    let score = 100;
+    score -= Math.min((day.precip_sum||0) * 12, 50);
+    if(day.temp_max < 18) score -= (18 - day.temp_max) * 2;
+    if(day.temp_max > 30) score -= (day.temp_max - 30) * 2;
+    score -= (day.cloud||0) * 0.25;
+    if(day.wind > 20) score -= (day.wind - 20) * 0.8;
+    if(day.code >= 45) score -= 15;
+    if(day.code >= 61) score -= 15;
+    if(day.code >= 95) score -= 20;
+    return Math.max(0, Math.round(score));
+  }
+
+  function getWeatherForDate(dateStr){
+    if(!weatherData || !weatherData.daily || !weatherData.daily.time) return null;
+    const idx = weatherData.daily.time.indexOf(dateStr);
+    if(idx === -1) return null;
+    return {
+      tempMax: weatherData.daily.temperature_2m_max[idx],
+      tempMin: weatherData.daily.temperature_2m_min[idx],
+      precip: weatherData.daily.precipitation_sum[idx],
+      precipProb: weatherData.daily.precipitation_probability_max[idx],
+      code: weatherData.daily.weather_code[idx],
+      wind: weatherData.daily.wind_speed_10m_max[idx],
+      cloud: weatherData.daily.cloud_cover_mean[idx]
+    };
+  }
+
+  function isGoodWeather(dateStr){
+    const w = getWeatherForDate(dateStr);
+    if(!w) return false;
+    return weatherScore({temp_max:w.tempMax, precip_sum:w.precip, cloud:w.cloud, wind:w.wind, code:w.code}) >= GOOD_WEATHER_THRESHOLD;
+  }
+
+  // ============================================================
+  // AVAILABILITY
+  // ============================================================
+  function toggleAvailability(personId, dateStr){
+    const existing = data.availability.find(a => a.personId === personId && a.date === dateStr);
+    if(existing){
+      data.availability = data.availability.filter(a => a !== existing);
+    } else {
+      data.availability.push({ id: uid(), personId, date: dateStr });
+    }
+  }
+  function isAvailable(personId, dateStr){
+    return data.availability.some(a => a.personId === personId && a.date === dateStr);
+  }
+  function availableCount(dateStr){
+    return data.people.filter(p => isAvailable(p.id, dateStr)).length;
+  }
+
+  // ============================================================
+  // DATA SYNC
+  // ============================================================
+  async function saveData(){
+    try{ await docRef.set(data, { merge: true }); }
+    catch(e){ console.error('save failed', e); alert('Could not save — check your internet connection.'); }
+  }
+  function loadMyId(){ return localStorage.getItem(ME_KEY) || null; }
+  function saveMyId(id){
+    if(id) localStorage.setItem(ME_KEY, id);
+    else localStorage.removeItem(ME_KEY);
+  }
+  function subscribeToData(onChange){
+    docRef.onSnapshot(snap => {
+      if(snap.exists){
+        const d = snap.data();
+        data = { people: d.people||[], blocks: d.blocks||[], availability: d.availability||[] };
+      } else {
+        data = { people: [], blocks: [], availability: [] };
+      }
+      onChange();
+    }, err => {
+      console.error('snapshot error', err);
+      document.getElementById('app').innerHTML = '<div style="padding:40px 20px; text-align:center; color:var(--text-dim); font-size:14px;">Could not connect to the shared calendar. Check your Firestore security rules allow read/write.</div>';
+    });
+  }
+
+  // ============================================================
+  // SETUP SCREEN
+  // ============================================================
+  const $app = document.getElementById('app');
+
+  function renderSetup(){
+    const existing = data.people;
+    $app.innerHTML = `
+      <div id="setup">
+        <div class="setup-card">
+          <h2>out the <span style="color:var(--accent)">gc</span></h2>
+          <p>Find the best day for a family day in Cape Town — with weather forecasts and everyone's availability.</p>
+          ${existing.length ? `
+            <label class="field-label">Already in the crew</label>
+            <div class="existing-people">
+              ${existing.map(p => `
+                <div class="person-pick" data-id="${p.id}">
+                  <span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}
+                </div>`).join('')}
+            </div>` : ''}
+          <label class="field-label">Or add yourself</label>
+          <input type="text" id="new-name" placeholder="Your name" maxlength="24">
+          <button class="btn-primary" id="join-btn">Join the crew</button>
+        </div>
+      </div>`;
+
+    $app.querySelectorAll('.person-pick').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const personId = el.getAttribute('data-id');
+        const person = data.people.find(p => p.id === personId);
+        // Lock admin account behind password
+        if(isAdmin(person)){
+          const pwd = prompt('Enter admin password to switch to this account:');
+          if(pwd !== 'Admin') return;
+        }
+        myId = personId;
+        saveMyId(myId);
+        render();
+      });
+    });
+    document.getElementById('join-btn').addEventListener('click', async ()=>{
+      const input = document.getElementById('new-name');
+      const name = input.value.trim();
+      if(!name){ input.focus(); return; }
+      // Prevent duplicate names
+      const dupe = data.people.find(p => p.name.toLowerCase() === name.toLowerCase());
+      if(dupe){
+        alert('"' + name + '" is already in the crew! Tap the name above to continue as them.');
+        return;
+      }
+      const p = { id: uid(), name, color: colorFor(data.people.length), isAdmin: name === 'Malika' };
+      data.people.push(p);
+      await saveData();
+      myId = p.id;
+      saveMyId(myId);
+      hiddenPeople = new Set();
+      render();
+    });
+    // Enter key submits
+    document.getElementById('new-name').addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter') document.getElementById('join-btn').click();
+    });
+  }
+
+  // ============================================================
+  // HERO CARD — best family day recommendation
+  // ============================================================
+  function renderHeroCard(today){
+    if(!weatherData || !weatherData.daily){
+      return `<div class="hero-card"><div class="hero-content"><div class="hero-title">Loading Cape Town weather forecast…</div></div></div>`;
+    }
+    let best = null;
+    for(let i=0; i<92; i++){
+      const day = addDays(today, i);
+      const dateStr = toWeatherDateStr(day);
+      const w = getWeatherForDate(dateStr);
+      if(!w) continue;
+      const score = weatherScore({temp_max:w.tempMax, precip_sum:w.precip, cloud:w.cloud, wind:w.wind, code:w.code});
+      if(score < GOOD_WEATHER_THRESHOLD) continue;
+      const avail = availableCount(dateStr);
+      const total = data.people.length;
+      const combined = avail * 1000 + score;
+      if(!best || combined > best.combined){
+        best = { day, dateStr, w, score, avail, total, combined };
+      }
+    }
+    if(!best){
+      return `<div class="hero-card">
+        <div class="hero-icon">🤔</div>
+        <div class="hero-content">
+          <div class="hero-title">No great weather days coming up</div>
+          <div class="hero-day" style="font-size:14px;color:var(--text-dim)">Check back later for updated forecasts</div>
+        </div>
+      </div>`;
+    }
+    const allReady = best.total > 0 && best.avail === best.total;
+    return `
+      <div class="hero-card ${allReady?'all-ready':''}" data-date="${best.day.toISOString()}">
+        <div class="hero-icon">${weatherEmoji(best.w.code)}</div>
+        <div class="hero-content">
+          <div class="hero-title">Best day for a family day</div>
+          <div class="hero-day">${fmtDayLabel(best.day, today)}</div>
+          <div class="hero-weather">${weatherDesc(best.w.code)} • ${Math.round(best.w.tempMax)}°C</div>
+          <div class="hero-avail">${best.total > 0 ? best.avail + '/' + best.total + ' available' : 'Add family members to track availability'}</div>
+        </div>
+        <div class="hero-smiley">😊</div>
+      </div>`;
+  }
+
+  // ============================================================
+  // WEATHER TODAY
+  // ============================================================
+  function renderWeatherToday(today){
+    if(!weatherData || !weatherData.daily) return '';
+    const todayStr = toWeatherDateStr(today);
+    const w = getWeatherForDate(todayStr);
+    if(!w) return '';
+    const isGood = isGoodWeather(todayStr);
+    return `
+      <div class="section-title">🌤️ Cape Town weather today</div>
+      <div class="weather-today-card">
+        <div class="wt-emoji">${weatherEmoji(w.code)}</div>
+        <div class="wt-info">
+          <div class="wt-temp">${Math.round(w.tempMax)}° / ${Math.round(w.tempMin)}°</div>
+          <div class="wt-desc">${weatherDesc(w.code)}${isGood ? ' — great for a family day!' : ''}</div>
+        </div>
+        <div class="wt-extras">
+          <div>💧 ${w.precipProb}%</div>
+          <div>💨 ${Math.round(w.wind)} km/h</div>
+          <button class="wt-refresh" id="refresh-weather">↻ Refresh</button>
+        </div>
+      </div>`;
+  }
+
+  // ============================================================
+  // BEST FAMILY DAYS LIST
+  // ============================================================
+  function renderBestFamilyDays(today){
+    if(!weatherData || !weatherData.daily) return '<div class="no-window">Loading weather forecast…</div>';
+    const days = [];
+    for(let i=0; i<92; i++){
+      const day = addDays(today, i);
+      const dateStr = toWeatherDateStr(day);
+      const w = getWeatherForDate(dateStr);
+      if(!w) continue;
+      const score = weatherScore({temp_max:w.tempMax, precip_sum:w.precip, cloud:w.cloud, wind:w.wind, code:w.code});
+      if(score < GOOD_WEATHER_THRESHOLD) continue;
+      const total = data.people.length;
+      const avail = availableCount(dateStr);
+      days.push({ day, dateStr, w, score, avail, total });
+    }
+    days.sort((a,b)=>{
+      if(b.avail !== a.avail) return b.avail - a.avail;
+      return b.score - a.score;
+    });
+    if(days.length === 0) return '<div class="no-window">No great weather days in the forecast right now. 😔</div>';
+    return days.slice(0,6).map(d=>{
+      const allReady = d.total > 0 && d.avail === d.total;
+      const pct = d.total > 0 ? (d.avail / d.total * 100) : 0;
+      return `
+        <div class="family-day-item ${allReady?'all-ready':''}" data-date="${d.day.toISOString()}">
+          <div class="fd-emoji">${weatherEmoji(d.w.code)}</div>
+          <div class="fd-info">
+            <div class="fd-date">${fmtDayLabel(d.day, today)}</div>
+            <div class="fd-weather">${weatherDesc(d.w.code)} • ${Math.round(d.w.tempMax)}°C • 💧 ${d.w.precipProb}%</div>
+            <div class="fd-avail-bar"><div class="fd-avail-fill" style="width:${pct}%"></div></div>
+          </div>
+          <div class="fd-smiley">😊</div>
+          <div class="fd-count">${d.total > 0 ? d.avail + '/' + d.total : '—'}</div>
+        </div>`;
+    }).join('');
+  }
+
+  // ============================================================
+  // MONTH GRID
+  // ============================================================
+  function getMonthMatrix(anchor){
+    const firstOfMonth = startOfMonth(anchor);
+    const firstDow = (firstOfMonth.getDay()+6)%7;
+    const gridStart = addDays(firstOfMonth, -firstDow);
+    const weeks = [];
+    let cursor = gridStart;
+    for(let w=0; w<6; w++){
+      const week = [];
+      for(let d=0; d<7; d++){ week.push(new Date(cursor)); cursor = addDays(cursor,1); }
+      weeks.push(week);
+    }
+    return weeks;
+  }
+
+  function blocksForDayVisible(date, personIds){
+    const dayStart = startOfDay(date), dayEnd = addDays(dayStart,1);
+    return data.blocks
+      .filter(b => personIds.includes(b.personId) && new Date(b.start) < dayEnd && new Date(b.end) > dayStart)
+      .sort((a,b)=> new Date(a.start)-new Date(b.start));
+  }
+
+  function renderMonthGrid(anchor, selDate, visiblePeople, today){
+    const monthLabel = anchor.toLocaleDateString(undefined,{month:'long', year:'numeric'});
+    const weeks = getMonthMatrix(anchor);
+    const personIds = visiblePeople.map(p=>p.id);
+    const weekdayLabels = ['M','T','W','T','F','S','S'];
+    const maxShow = 3;
+
+    const weeksHtml = weeks.map(week => `
+      <div class="week-row">
+        ${week.map(day => {
+          const inMonth = day.getMonth() === anchor.getMonth();
+          const isToday = sameDay(day, today);
+          const isSelected = sameDay(day, selDate);
+          const dateStr = toWeatherDateStr(day);
+          const blocks = blocksForDayVisible(day, personIds);
+          const isFreeDay = personIds.length > 0 && blocks.length === 0;
+          const isGoodWx = isGoodWeather(dateStr);
+          const w = getWeatherForDate(dateStr);
+          const wxEmoji = w ? weatherEmoji(w.code) : '';
+
+          // Availability dots
+          const availDots = data.people
+            .filter(p => isAvailable(p.id, dateStr))
+            .map(p => `<span class="avail-dot" style="background:${p.color}"></span>`)
+            .join('');
+
+          const shown = blocks.slice(0, maxShow);
+          const extra = blocks.length - shown.length;
+          const pillsHtml = shown.map(b=>{
+            const p = data.people.find(pp=>pp.id===b.personId);
+            const c = p ? p.color : '#888';
+            return `<div class="pill" style="background:${c}26; color:${c}; border-color:${c}66;">${escapeHtml(b.title)}</div>`;
+          }).join('');
+          const moreHtml = extra > 0 ? `<div class="pill-more">+${extra} more</div>` : '';
+
+          const classes = [
+            'day-cell',
+            inMonth ? '' : 'other-month',
+            isFreeDay ? 'free-day' : '',
+            isGoodWx ? 'good-weather' : '',
+            isToday ? 'today' : '',
+            isSelected ? 'selected' : ''
+          ].filter(Boolean).join(' ');
+
+          return `<div class="${classes}" data-date="${day.toISOString()}">
+            <div class="day-top">
+              <span class="day-num">${day.getDate()}</span>
+              <span class="day-wx">${isGoodWx ? '😊' : wxEmoji}</span>
+            </div>
+            <div class="day-avail-dots">${availDots}</div>
+            <div class="day-pills">${pillsHtml}${moreHtml}</div>
+          </div>`;
+        }).join('')}
+      </div>`).join('');
+
+    return `
+      <div class="month-card">
+        <div class="month-header">
+          <button class="month-nav-btn" id="prev-month" type="button">‹</button>
+          <div class="month-label">${monthLabel}</div>
+          <button class="month-nav-btn" id="next-month" type="button">›</button>
+        </div>
+        <div class="weekday-row">${weekdayLabels.map(w=>`<span>${w}</span>`).join('')}</div>
+        <div class="month-grid">${weeksHtml}</div>
+      </div>`;
+  }
+
+  // ============================================================
+  // DAY DETAILS — weather, availability, blocks
+  // ============================================================
+  function renderDayDetails(dayDate, today, me){
+    const dateStr = toWeatherDateStr(dayDate);
+    const w = getWeatherForDate(dateStr);
+    const isGood = isGoodWeather(dateStr);
+
+    // --- Weather row ---
+    let weatherHtml = '';
+    if(w){
+      weatherHtml = `
+        <div class="day-weather-row">
+          <span class="dw-emoji">${weatherEmoji(w.code)}</span>
+          <span class="dw-desc">${weatherDesc(w.code)}</span>
+          <span class="dw-temp">${Math.round(w.tempMax)}° / ${Math.round(w.tempMin)}°C</span>
+          <span class="dw-extra">💧 ${w.precipProb}% • 💨 ${Math.round(w.wind)} km/h</span>
+          ${isGood ? '<span class="day-weather-badge">😊 Great for a family day!</span>' : ''}
+        </div>`;
+    }
+
+    // --- Availability section ---
+    const myAvail = isAvailable(me.id, dateStr);
+    const availHtml = `
+      <div class="avail-section">
+        <div class="avail-title">Family day availability</div>
+        <button class="avail-toggle ${myAvail?'on':''}" id="my-avail-btn">
+          <span class="dot" style="background:${me.color}"></span>
+          <span class="avail-label">${myAvail ? "Remove availability" : "I'm available"}</span>
+          <span class="avail-hint">tap to mark</span>
+          <span class="avail-check">✓</span>
+        </button>
+      </div>`;
+
+    // --- Blocks ---
+    const dayStart = startOfDay(dayDate), dayEnd = addDays(dayStart,1);
+    const items = data.blocks
+      .filter(b => new Date(b.start) < dayEnd && new Date(b.end) > dayStart)
+      .sort((a,b)=> new Date(a.start)-new Date(b.start));
+
+    let blocksHtml = '';
+    if(items.length > 0){
+      blocksHtml = '<div class="avail-divider"></div>';
+      blocksHtml += items.map(b=>{
+        const p = data.people.find(pp=>pp.id===b.personId);
+        const canDelete = b.personId === myId;
+        return `<div class="block-item">
+          <span class="dot" style="background:${p?p.color:'#888'}"></span>
+          <div class="b-title">${escapeHtml(b.title)} <span style="color:var(--text-dimmer)">— ${p?escapeHtml(p.name):'?'}</span></div>
+          <div class="b-time">${b.allDay ? 'all day' : fmtTime(new Date(b.start))+'–'+fmtTime(new Date(b.end))}</div>
+          ${canDelete ? `<button class="b-del" data-id="${b.id}">×</button>` : ''}
+        </div>`;
+      }).join('');
+    } else {
+      blocksHtml = '<div class="avail-divider"></div><div class="empty-note">No schedule conflicts on this day.</div>';
+    }
+
+    return weatherHtml + availHtml + blocksHtml;
+  }
+
+  // ============================================================
+  // MAIN RENDER
+  // ============================================================
+  function render(){
+    const me = data.people.find(p=>p.id===myId);
+    if(!me){ renderSetup(); return; }
+
+    const today = startOfDay(new Date());
+    const visiblePeople = data.people.filter(p=>!hiddenPeople.has(p.id));
+
+    $app.innerHTML = `
+      <nav class="nav-bar">
+        <a href="index.html" class="nav-link">Home</a>
+        <a href="calendar.html" class="nav-link active">Calendar</a>
+        <a href="gifts.html" class="nav-link">Gifts</a>
+      </nav>
+      <header class="top">
+        <div>
+          <h1>out the <span>gc</span></h1>
+          <div class="tagline"><span class="sync-dot"></span>synced • Cape Town weather • family day planner</div>
+        </div>
+        <div class="me-chip" id="switch-me"><span class="dot" style="background:${me.color}"></span>${escapeHtml(me.name)}</div>
+      </header>
+
+      ${renderHeroCard(today)}
+
+      <div class="section-title">🏖️ Best days for a family day</div>
+      <div class="family-days-list" id="family-days-list">
+        ${renderBestFamilyDays(today)}
+      </div>
+
+      <div class="section-title">Calendar</div>
+      ${renderMonthGrid(monthAnchor, selectedDate, visiblePeople, today)}
+      ${visiblePeople.length ? `
+        <div class="legend-row">
+          ${visiblePeople.map(p=>`<div class="legend-item"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}</div>`).join('')}
+          <div class="legend-item">😊 Good weather day</div>
+          <div class="legend-item"><span class="dot" style="background:var(--green)"></span>Everyone free</div>
+        </div>` : ''}
+
+      <div class="section-title">${fmtDayLabel(selectedDate, today)}</div>
+      <div class="month-card" style="padding:16px;">
+        ${renderDayDetails(selectedDate, today, me)}
+      </div>
+
+      <div class="hint-box">
+        <b>How it works:</b> Days with 😊 have the best Cape Town weather. Tap a day, then tap
+        <b>I'm available</b> to mark yourself free for a family day. Your family does the same on their
+        phones — everything syncs automatically. The <b>Best days</b> list ranks good-weather days
+        by how many people are available.
+      </div>
+
+      ${isAdmin(me) ? `
+      <div class="section-title">Manage crew</div>
+      <div class="month-card" style="padding:16px;">
+        ${data.people.map(p => `
+          <div class="admin-person-row">
+            <span class="dot" style="background:${p.color}"></span>
+            <span class="ap-name">${escapeHtml(p.name)}</span>
+            ${isAdmin(p) ? '<span class="ap-badge">admin</span>' : ''}
+            ${p.id === myId ? '<span class="ap-badge" style="background:var(--green-dim);color:var(--green)">you</span>' : ''}
+            ${p.id !== myId ? `<button class="ap-del" data-remove-id="${p.id}">×</button>` : ''}
+          </div>`).join('')}
+      </div>
+
+      <button class="reset-btn" id="reset-btn">Reset all data</button>
+      ` : ''}
+    `;
+
+    // --- Bind events ---
+    document.getElementById('switch-me').addEventListener('click', ()=>{
+      myId = null; saveMyId(''); render();
+    });
+    const resetBtn = document.getElementById('reset-btn');
+    if(resetBtn){
+      resetBtn.addEventListener('click', async ()=>{
+        if(!confirm('This will erase everyone and all availability. Are you sure?')) return;
+        data = { people: [], blocks: [], availability: [] };
+        myId = null; saveMyId('');
+        hiddenPeople = new Set();
+        try{ await docRef.set(data, { merge: true }); }catch(e){ console.error('reset failed', e); }
+        render();
+      });
+    }
+    const prevBtn = document.getElementById('prev-month');
+    const nextBtn = document.getElementById('next-month');
+    if(prevBtn) prevBtn.addEventListener('click', ()=>{ monthAnchor = addMonths(monthAnchor,-1); render(); });
+    if(nextBtn) nextBtn.addEventListener('click', ()=>{ monthAnchor = addMonths(monthAnchor,1); render(); });
+
+    // Day cell clicks (calendar + hero + family days)
+    $app.querySelectorAll('.day-cell').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const d = new Date(el.getAttribute('data-date'));
+        selectedDate = d;
+        if(d.getMonth() !== monthAnchor.getMonth() || d.getFullYear() !== monthAnchor.getFullYear()){
+          monthAnchor = startOfMonth(d);
+        }
+        render();
+      });
+    });
+    $app.querySelectorAll('.hero-card[data-date]').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const d = new Date(el.getAttribute('data-date'));
+        selectedDate = d;
+        monthAnchor = startOfMonth(d);
+        render();
+      });
+    });
+    $app.querySelectorAll('.family-day-item').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const d = new Date(el.getAttribute('data-date'));
+        selectedDate = d;
+        monthAnchor = startOfMonth(d);
+        render();
+      });
+    });
+
+    // Weather refresh
+    const refreshBtn = document.getElementById('refresh-weather');
+    if(refreshBtn) refreshBtn.addEventListener('click', async ()=>{
+      refreshBtn.textContent = 'Refreshing…';
+      await fetchWeather();
+      render();
+    });
+
+    // Availability toggle
+    const availBtn = document.getElementById('my-avail-btn');
+    if(availBtn){
+      availBtn.addEventListener('click', async ()=>{
+        toggleAvailability(myId, toWeatherDateStr(selectedDate));
+        await saveData();
+        render();
+      });
+    }
+
+    // Delete blocks
+    $app.querySelectorAll('.b-del').forEach(el=>{
+      el.addEventListener('click', async (ev)=>{
+        ev.stopPropagation();
+        const id = el.getAttribute('data-id');
+        data.blocks = data.blocks.filter(b=>b.id!==id);
+        await saveData();
+        render();
+      });
+    });
+
+    // Admin: remove person
+    $app.querySelectorAll('.ap-del').forEach(el=>{
+      el.addEventListener('click', async (ev)=>{
+        ev.stopPropagation();
+        const removeId = el.getAttribute('data-remove-id');
+        const person = data.people.find(p => p.id === removeId);
+        if(!person) return;
+        if(!confirm('Remove ' + person.name + ' from the crew? This also removes their availability and schedule blocks.')) return;
+        data.people = data.people.filter(p => p.id !== removeId);
+        data.availability = data.availability.filter(a => a.personId !== removeId);
+        data.blocks = data.blocks.filter(b => b.personId !== removeId);
+        await saveData();
+        render();
+      });
+    });
+  }
+
+  // ============================================================
+  // ADD BUSY MODAL
+  // ============================================================
+  function openAddModal(defaultDate){
+    modalOpen = true;
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.innerHTML = `
+      <div class="modal-sheet">
+        <h3>Add to my schedule</h3>
+        <div class="modal-sub">This shows as a busy time on the shared calendar.</div>
+        <label class="field-label">What's up</label>
+        <input type="text" id="m-title" placeholder="e.g. work, dentist, out of town" maxlength="40">
+        <div class="row-2">
+          <div>
+            <label class="field-label">Start date</label>
+            <input type="date" id="m-start-date" value="${toLocalInputDate(defaultDate)}">
+          </div>
+          <div>
+            <label class="field-label">End date</label>
+            <input type="date" id="m-end-date" value="${toLocalInputDate(defaultDate)}">
+          </div>
+        </div>
+        <div class="row-2" id="time-row">
+          <div>
+            <label class="field-label">Start time</label>
+            <input type="time" id="m-start-time" value="09:00">
+          </div>
+          <div>
+            <label class="field-label">End time</label>
+            <input type="time" id="m-end-time" value="17:00">
+          </div>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="m-allday"> All day / multi-day
+        </div>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="m-cancel">Cancel</button>
+          <button class="btn-primary" id="m-save">Save</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+
+    const allDayBox = backdrop.querySelector('#m-allday');
+    const timeRow = backdrop.querySelector('#time-row');
+    allDayBox.addEventListener('change', ()=>{ timeRow.style.display = allDayBox.checked ? 'none' : 'flex'; });
+
+    backdrop.querySelector('#m-cancel').addEventListener('click', ()=>{ document.body.removeChild(backdrop); modalOpen=false; });
+    backdrop.querySelector('#m-save').addEventListener('click', async ()=>{
+      const title = backdrop.querySelector('#m-title').value.trim() || 'Busy';
+      const allDay = allDayBox.checked;
+      const sd = backdrop.querySelector('#m-start-date').value;
+      const ed = backdrop.querySelector('#m-end-date').value;
+      let start, end;
+      if(allDay){
+        start = new Date(sd+'T00:00:00');
+        end = new Date(ed+'T23:59:59');
+      } else {
+        const st = backdrop.querySelector('#m-start-time').value;
+        const et = backdrop.querySelector('#m-end-time').value;
+        start = new Date(sd+'T'+st+':00');
+        end = new Date(ed+'T'+et+':00');
+      }
+      if(end <= start){ alert('End has to be after start.'); return; }
+      data.blocks.push({ id: uid(), personId: myId, title, start: start.toISOString(), end: end.toISOString(), allDay, source: 'manual' });
+      await saveData();
+      document.body.removeChild(backdrop);
+      modalOpen = false;
+      render();
+    });
+  }
+
+  // ============================================================
+  // BOOT
+  // ============================================================
+  function handleUpdate(){
+    if(modalOpen) return;
+    render();
+  }
+
+  function boot(){
+    myId = loadMyId();
+    if(NOT_CONFIGURED){
+      $app.innerHTML = `<div style="padding:40px 20px; text-align:center; color:var(--text-dim); font-size:14px; line-height:1.6;">
+        <b style="color:var(--text)">Firebase isn't set up yet.</b><br><br>
+        Open this file and paste your Firebase project config into the <code>firebaseConfig</code> object near the top of the script.</div>`;
+      return;
+    }
+    $app.innerHTML = `<div style="padding:60px 20px; text-align:center; color:var(--text-dim); font-size:13px;">Loading the crew's calendar…</div>`;
+    fetchWeather();
+    subscribeToData(handleUpdate);
+    setInterval(fetchWeather, 30 * 60 * 1000);
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
