@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>out the gc — gift exchange</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<link rel="stylesheet" href="shared.css">
+<style>
+.gift-input-row{display:flex;gap:10px;margin-bottom:6px;}
+.gift-input-row input{flex:1;}
+.gift-input-row .btn-primary{width:auto;margin-top:0;padding:10px 20px;white-space:nowrap;}
+.dupe-warning{display:flex;align-items:center;gap:6px;background:var(--gold-dim);border:1px solid rgba(230,169,53,0.35);border-radius:8px;padding:8px 12px;margin-top:8px;font-size:12px;color:var(--gold);}
+.gift-item{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line);}
+.gift-item:last-child{border-bottom:none;}
+.gift-item .gi-info{flex:1;min-width:0;}
+.gift-item .gi-name{font-size:14px;font-weight:500;}
+.gift-item .gi-person{font-size:12px;color:var(--text-dim);margin-top:2px;display:flex;align-items:center;gap:5px;}
+.gift-item .gi-del{color:var(--danger);font-size:16px;line-height:1;padding:4px 8px;background:none;border:none;cursor:pointer;}
+.gift-empty{text-align:center;padding:30px 0;color:var(--text-dim);font-size:14px;}
+</style>
+</head>
+<body>
+<div id="app"><div id="setup"></div></div>
+<script src="shared.js"></script>
+<script>
+(function(){
+  var $app=document.getElementById('app');
+
+  // Check if item name already exists (case-insensitive)
+  function checkDuplicate(itemName){
+    if(!itemName||!itemName.trim())return null;
+    var lower=itemName.trim().toLowerCase();
+    return (GC.data.gifts||[]).find(function(g){
+      return g.itemName&&g.itemName.trim().toLowerCase()===lower;
+    });
+  }
+
+  function renderGiftList(){
+    var gifts=GC.data.gifts||[];
+    if(!gifts.length){
+      return '<div class="gift-empty">No gifts added yet. Be the first! 🎁</div>';
+    }
+    // Sort: my gifts first, then by name
+    var sorted=gifts.slice().sort(function(a,b){
+      var aMine=a.personId===GC.myId?0:1;
+      var bMine=b.personId===GC.myId?0:1;
+      if(aMine!==bMine)return aMine-bMine;
+      return (a.personName||'').localeCompare(b.personName||'');
+    });
+    return sorted.map(function(g){
+      var person=GC.data.people.find(function(p){return p.id===g.personId;});
+      var color=person?person.color:'#888';
+      var name=person?person.name:(g.personName||'Unknown');
+      var canDelete=g.personId===GC.myId;
+      return '<div class="gift-item">'+
+        '<span class="dot" style="background:'+color+'"></span>'+
+        '<div class="gi-info">'+
+          '<div class="gi-name">'+GC.escapeHtml(g.itemName)+'</div>'+
+          '<div class="gi-person">'+GC.escapeHtml(name)+(g.personId===GC.myId?' (you)':'')+'</div>'+
+        '</div>'+
+        (canDelete?'<button class="gi-del" data-id="'+g.id+'" title="Remove your gift">×</button>':'')+
+      '</div>';
+    }).join('');
+  }
+
+  function render(){
+    var me=GC.data.people.find(function(p){return p.id===GC.myId;});
+    if(!me){GC.renderSetup($app,render);return;}
+
+    var myGifts=(GC.data.gifts||[]).filter(function(g){return g.personId===GC.myId;});
+
+    $app.innerHTML=
+      '<nav class="nav-bar">'+
+        '<a href="index.html" class="nav-link">Home</a>'+
+        '<a href="calendar.html" class="nav-link">Calendar</a>'+
+        '<a href="gifts.html" class="nav-link active">Gifts</a>'+
+      '</nav>'+
+      '<header class="top">'+
+        '<div>'+
+          '<h1>out the <span>gc</span></h1>'+
+          '<div class="tagline"><span class="sync-dot"></span>gift exchange • everyone brings one item</div>'+
+        '</div>'+
+        '<div class="me-chip" id="switch-me"><span class="dot" style="background:'+me.color+'"></span>'+GC.escapeHtml(me.name)+'</div>'+
+      '</header>'+
+
+      '<div class="section-title">🎁 What are you bringing?</div>'+
+      '<div class="month-card" style="padding:16px;">'+
+        (myGifts.length?
+          '<div style="margin-bottom:14px;">'+
+            myGifts.map(function(g){
+              return '<div class="gift-item">'+
+                '<span class="dot" style="background:'+me.color+'"></span>'+
+                '<div class="gi-info">'+
+                  '<div class="gi-name">'+GC.escapeHtml(g.itemName)+'</div>'+
+                  '<div class="gi-person">You</div>'+
+                '</div>'+
+                '<button class="gi-del" data-id="'+g.id+'" title="Remove">×</button>'+
+              '</div>';
+            }).join('')+
+          '</div>':'')+
+        '<label class="field-label" style="margin-top:0">Add a gift item</label>'+
+        '<div class="gift-input-row">'+
+          '<input type="text" id="gift-name" placeholder="e.g. handmade candles, board game, snacks..." maxlength="60">'+
+          '<button class="btn-primary" id="add-gift-btn">Add</button>'+
+        '</div>'+
+        '<div id="dupe-warning"></div>'+
+      '</div>'+
+
+      '<div class="section-title">👥 What everyone\'s bringing</div>'+
+      '<div class="month-card" style="padding:16px;">'+
+        renderGiftList()+
+      '</div>'+
+
+      '<div class="hint-box">'+
+        '<b>How it works:</b> Each person brings one item for the gift exchange. '+
+        'Type what you\'re planning to bring so everyone can see and avoid duplicates. '+
+        'You can add multiple items and remove your own at any time. '+
+        'Everything syncs automatically.'+
+      '</div>';
+
+    // Bind events
+    document.getElementById('switch-me').addEventListener('click',function(){
+      GC.myId=null;GC.saveMyId('');render();
+    });
+
+    var giftInput=document.getElementById('gift-name');
+    var dupeWarning=document.getElementById('dupe-warning');
+
+    // Live duplicate check as you type
+    giftInput.addEventListener('input',function(){
+      var dupe=checkDuplicate(giftInput.value);
+      if(dupe){
+        var dupePerson=GC.data.people.find(function(p){return p.id===dupe.personId;});
+        var dupeName=dupePerson?dupePerson.name:(dupe.personName||'Someone');
+        dupeWarning.innerHTML='<div class="dupe-warning">⚠️ '+GC.escapeHtml(dupeName)+' is already bringing "'+GC.escapeHtml(dupe.itemName)+'"</div>';
+      }else{
+        dupeWarning.innerHTML='';
+      }
+    });
+
+    function addGift(){
+      var name=giftInput.value.trim();
+      if(!name){giftInput.focus();return;}
+      var dupe=checkDuplicate(name);
+      if(dupe&&dupe.personId!==GC.myId){
+        if(!confirm('Someone is already bringing "'+name+'". Add it anyway?'))return;
+      }else if(dupe&&dupe.personId===GC.myId){
+        alert('You\'re already bringing "'+name+'!"');
+        return;
+      }
+      GC.data.gifts.push({
+        id:GC.uid(),
+        personId:GC.myId,
+        personName:me.name,
+        itemName:name,
+        addedAt:new Date().toISOString()
+      });
+      GC.saveGifts();
+      giftInput.value='';
+      dupeWarning.innerHTML='';
+      render();
+    }
+
+    document.getElementById('add-gift-btn').addEventListener('click',addGift);
+    giftInput.addEventListener('keydown',function(e){
+      if(e.key==='Enter')addGift();
+    });
+
+    // Delete gift buttons
+    $app.querySelectorAll('.gi-del').forEach(function(el){
+      el.addEventListener('click',async function(ev){
+        ev.stopPropagation();
+        var id=el.getAttribute('data-id');
+        if(!confirm('Remove this gift?'))return;
+        GC.data.gifts=GC.data.gifts.filter(function(g){return g.id!==id;});
+        await GC.saveGifts();
+        render();
+      });
+    });
+  }
+
+  function boot(){
+    GC.myId=GC.loadMyId();
+    if(GC.NOT_CONFIGURED){
+      $app.innerHTML='<div style="padding:40px 20px;text-align:center;color:var(--text-dim);font-size:14px;line-height:1.6;"><b style="color:var(--text)">Firebase isn\'t set up yet.</b><br><br>Open shared.js and paste your Firebase project config.</div>';
+      return;
+    }
+    $app.innerHTML='<div style="padding:60px 20px;text-align:center;color:var(--text-dim);font-size:13px;">Loading…</div>';
+    GC.subscribeToData(render);
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
